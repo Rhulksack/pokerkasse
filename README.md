@@ -3,8 +3,8 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-2.0.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-2.0.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-2.0.1.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-2.0.1.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 

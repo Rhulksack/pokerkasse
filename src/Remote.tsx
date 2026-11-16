@@ -115,6 +115,10 @@ function RemoteView({ game, data, update, online, err }: { game: Game; data: App
     if (advice?.kind === 'final' && game.status === 'running' && !askedFinal.current) { askedFinal.current = true; setModal({ k: 'final' }); }
     if (advice?.kind !== 'final') askedFinal.current = false;
   }, [advice?.kind, game.status]);
+  // Am Laptop schon erledigt: veraltete Dialoge schließen
+  useEffect(() => {
+    setModal((m) => (m?.k === 'final' && advice?.kind !== 'final') || (m?.k === 'balance' && advice?.kind !== 'balance') ? null : m);
+  }, [advice?.kind]);
 
   if (finished) {
     const pod = podium(st);

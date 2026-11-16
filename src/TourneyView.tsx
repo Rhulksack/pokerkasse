@@ -288,6 +288,15 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
     if (advice?.kind === 'final' && game.status === 'running' && !askedFinal.current) { askedFinal.current = true; setModal({ k: 'final' }); setTvMode(false); }
     if (advice?.kind !== 'final') askedFinal.current = false;
   }, [advice?.kind, game.status]);
+  // Hat ein anderes Gerät (Handy) die Aktion schon erledigt, veraltete Dialoge schließen
+  useEffect(() => {
+    setModal((m) => {
+      if (m?.k === 'final' && advice?.kind !== 'final') return null;
+      if (m?.k === 'balance' && advice?.kind !== 'balance') return null;
+      if (m?.k === 'endcheck' && !(game.status === 'running' && st.alive === 1)) return null;
+      return m;
+    });
+  }, [advice?.kind, game.status, st.alive]);
 
   // Nur noch ein Spieler: Treppchen zeigen, Host prüft
   const endPending = game.status === 'running' && st.alive === 1 && st.players.length >= 2;
