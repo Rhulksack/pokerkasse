@@ -4,6 +4,7 @@ import { RemoteApp } from './Remote';
 import { autoLabelTables, isElectron } from './platform';
 import './styles.css';
 const remote = location.hash.match(/^#remote=(.+)$/);
+if (remote) document.documentElement.classList.add('remote');
 createRoot(document.getElementById('root')!).render(remote ? <RemoteApp gameId={decodeURIComponent(remote[1])} /> : <App />);
 autoLabelTables();
 if (!isElectron() && (location.protocol === 'https:' || location.hostname === 'localhost') && 'serviceWorker' in navigator) {

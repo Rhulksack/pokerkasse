@@ -72,20 +72,23 @@ export function useTick(ms: number) {
 export function Modal({ title, onClose, children, footer, wide }: {
   title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean;
 }) {
+  const downRef = useRef(false);
   useEffect(() => {
     const h = (ev: KeyboardEvent) => ev.key === 'Escape' && onClose();
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
   return (
-    <div className="overlay" onMouseDown={(ev) => ev.target === ev.currentTarget && onClose()}>
+    <div className="overlay"
+      onPointerDown={(ev) => { downRef.current = ev.target === ev.currentTarget; }}
+      onClick={(ev) => { if (downRef.current && ev.target === ev.currentTarget) onClose(); downRef.current = false; }}>
       <div className={'modal' + (wide ? ' wide' : '')} role="dialog">
         <div className="modal-head">
           <h2>{title}</h2>
           <div className="spacer" />
           <button className="btn ghost sm" onClick={onClose} aria-label="Schließen">{Icon.x}</button>
         </div>
-        {children}
+        <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
