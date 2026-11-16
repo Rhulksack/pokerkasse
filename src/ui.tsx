@@ -30,7 +30,44 @@ export const Icon = {
   spade: P('M12 2C9 6 4 8.5 4 13a4 4 0 007 2.6L10 20h4l-1-4.4A4 4 0 0020 13c0-4.5-5-7-8-11z'),
   folder: P('M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z'),
   arrow: P('M5 12h14M13 6l6 6-6 6'),
+  pause: P('M8 5v14M16 5v14'),
+  next: P('M5 5l10 7-10 7V5zM19 5v14'),
+  prev: P('M19 5L9 12l10 7V5zM5 5v14'),
+  tv: P('M3 5h18v12H3zM8 21h8M12 17v4'),
+  trophy: P('M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4'),
+  shuffle: P('M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5'),
+  skull: P('M12 3a8 8 0 00-5 14.2V20h10v-2.8A8 8 0 0012 3zM9 12h.01M15 12h.01M10 20v-2M14 20v-2'),
+  dots: P('M5 12h.01M12 12h.01M19 12h.01'),
+  clock: P('M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2'),
 };
+
+export function NumInput({ value, onChange, placeholder, suffix, width }: { value: number | null; onChange: (v: number | null) => void; placeholder?: string; suffix?: string; width?: number }) {
+  const [txt, setTxt] = useState(value == null ? '' : String(value));
+  useEffect(() => { if ((txt === '' ? null : Number(txt)) !== value) setTxt(value == null ? '' : String(value)); }, [value]);
+  return (
+    <div className="input-num" data-suffix={suffix ?? ''} style={width ? { width } : undefined}>
+      <input className="input num-in" inputMode="numeric" value={txt} placeholder={placeholder ?? ''}
+        onChange={(ev) => { const v = ev.target.value.replace(/[^0-9]/g, ''); setTxt(v); onChange(v === '' ? null : Number(v)); }} />
+    </div>
+  );
+}
+
+export function useWakeLock(active: boolean) {
+  useEffect(() => {
+    if (!active || !('wakeLock' in navigator)) return;
+    let lock: any = null; let dead = false;
+    const req = async () => { try { lock = await (navigator as any).wakeLock.request('screen'); } catch { /* nicht verfügbar */ } };
+    const vis = () => { if (document.visibilityState === 'visible' && !dead) req(); };
+    req(); document.addEventListener('visibilitychange', vis);
+    return () => { dead = true; document.removeEventListener('visibilitychange', vis); lock?.release?.().catch(() => {}); };
+  }, [active]);
+}
+
+export function useTick(ms: number) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  return now;
+}
 
 export function Modal({ title, onClose, children, footer, wide }: {
   title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean;

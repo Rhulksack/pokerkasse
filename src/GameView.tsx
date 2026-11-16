@@ -371,7 +371,7 @@ function AddPlayerModal({ game, data, update, onClose }: { game: Game; data: App
   );
 }
 
-function LogModal({ game, voided, onVoid, onClose }: { game: Game; voided: Set<string>; onVoid: (id: string) => void; onClose: () => void }) {
+export function LogModal({ game, voided, onVoid, onClose }: { game: Game; voided: Set<string>; onVoid: (id: string) => void; onClose: () => void }) {
   const evs = [...game.events].reverse();
   return (
     <Modal title="Protokoll" wide onClose={onClose}>

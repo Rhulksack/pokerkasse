@@ -8,9 +8,16 @@ declare global {
       openDataFolder: () => Promise<void>;
       exportPdf: (html: string, fileName: string) => Promise<boolean>;
       exportTxt: (text: string, fileName: string) => Promise<boolean>;
+      onDataChanged?: (cb: (d: AppData) => void) => () => void;
+      tvOpen?: (gameId: string, auto: boolean) => Promise<TvState>;
+      tvClose?: () => Promise<TvState>;
+      tvState?: () => Promise<TvState>;
+      onTvChanged?: (cb: (st: TvState) => void) => () => void;
     };
   }
 }
+
+export interface TvState { open: boolean; gameId: string | null; displays: number; external: boolean }
 
 const KEY = 'pokerkasse-daten';
 

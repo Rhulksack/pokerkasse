@@ -17,7 +17,9 @@ interface BaseEvent {
 export type GameEvent =
   | (BaseEvent & { type: 'game_started' })
   | (BaseEvent & { type: 'player_added'; playerId: string })
-  | (BaseEvent & { type: 'buyin'; playerId: string; amount: number; paid: boolean })
+  | (BaseEvent & { type: 'buyin'; playerId: string; amount: number; paid: boolean; rebuy?: boolean })
+  | (BaseEvent & { type: 'bust'; playerId: string; byId?: string | null; final: boolean })
+  | (BaseEvent & { type: 'clock'; action: string })
   | (BaseEvent & { type: 'payment'; playerId: string; amount: number })
   | (BaseEvent & { type: 'rake'; amount: number })
   | (BaseEvent & { type: 'tip'; amount: number })
@@ -54,12 +56,17 @@ export interface Game {
   events: GameEvent[];
   final: FinalCount | null;
   settleMode: 'overview' | 'suggestions';
+  kind?: 'cash' | 'tourney';
+  tourney?: import('./tourney').TourneyConfig;
+  clock?: import('./tourney').Clock;
+  seating?: import('./tourney').Seating;
 }
 
 export interface AppData {
   version: 1;
   players: MasterPlayer[];
   games: Game[];
+  lastTourney?: import('./tourney').TourneyConfig;
 }
 
 export const emptyData = (): AppData => ({ version: 1, players: [], games: [] });
@@ -429,13 +436,13 @@ export function describeEvent(ev: GameEvent, game: Game): string {
   const name = (id: string) => game.players.find((p) => p.id === id)?.name ?? '?';
   switch (ev.type) {
     case 'game_started':
-      return 'Homegame gestartet';
+      return game.kind === 'tourney' ? 'Turnier gestartet' : 'Homegame gestartet';
     case 'game_finished':
-      return 'Homegame beendet und abgerechnet';
+      return game.kind === 'tourney' ? 'Turnier beendet' : 'Homegame beendet und abgerechnet';
     case 'player_added':
       return `${name(ev.playerId)} ist dem Spiel beigetreten`;
     case 'buyin':
-      return `${name(ev.playerId)}: Buy-in ${fmt(ev.amount)} (${ev.paid ? 'bar' : 'angeschrieben'})`;
+      return `${name(ev.playerId)}: ${ev.rebuy ? 'Rebuy' : 'Buy-in'} ${fmt(ev.amount)} (${ev.paid ? 'bar' : 'angeschrieben'})`;
     case 'payment':
       return `${name(ev.playerId)}: ${fmt(ev.amount)} Angeschriebenes bar nachbezahlt`;
     case 'rake':
@@ -444,6 +451,12 @@ export function describeEvent(ev: GameEvent, game: Game): string {
       return `Dealer-Tip ${fmt(ev.amount)} vom Tisch genommen`;
     case 'cashout':
       return `${name(ev.playerId)}: Cash-out mit ${fmt(ev.chips)} Chips, ${fmt(ev.payoutCash)} bar ausgezahlt`;
+    case 'bust': {
+      const by = ev.byId ? ` (von ${name(ev.byId)})` : '';
+      return ev.final ? `${name(ev.playerId)} ist ausgeschieden${by}` : `${name(ev.playerId)} wurde rausgeworfen${by} und macht Rebuy`;
+    }
+    case 'clock':
+      return `Uhr: ${ev.action}`;
     case 'void': {
       const t = game.events.find((x) => x.id === ev.targetId);
       return `Storniert: ${t ? describeEvent(t, game) : 'Eintrag'}`;
@@ -452,4 +465,4 @@ export function describeEvent(ev: GameEvent, game: Game): string {
 }
 
 export const isVoidable = (ev: GameEvent) =>
-  ['buyin', 'payment', 'rake', 'tip', 'cashout'].includes(ev.type);
+  ['buyin', 'payment', 'rake', 'tip', 'cashout', 'bust'].includes(ev.type);

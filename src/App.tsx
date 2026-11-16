@@ -3,6 +3,9 @@ import { AppData, Game, MasterPlayer, deriveState, emptyData, fmt, fmtDuration, 
 import { loadData, saveData } from './storage';
 import { Avatar, Icon, Modal, fmtDate, useNow } from './ui';
 import GameView from './GameView';
+import TourneyView, { TvWindow } from './TourneyView';
+import TourneySetup, { tourneyErrors } from './TourneySetup';
+import { TourneyConfig, defaultTourney, drawSeats, entryPrice, tourneyState } from './tourney';
 import { isAppData, isElectron, isIOS, isStandalone, mergeData, shareOrDownload } from './platform';
 
 export type Update = (fn: (d: AppData) => void) => void;
@@ -14,6 +17,7 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ view: 'home' });
 
   useEffect(() => { loadData().then((d) => setData(d ?? emptyData())); }, []);
+  useEffect(() => window.api?.onDataChanged?.((d) => setData(d)), []);
 
   const update: Update = useCallback((fn) => {
     setData((prev) => {
@@ -26,8 +30,12 @@ export default function App() {
 
   if (!data) return null;
 
+  const tv = location.hash.match(/^#tv=(.+)$/);
+  if (tv) return <TvWindow gameId={decodeURIComponent(tv[1])} data={data} />;
+
   if (route.view === 'game') {
     const g = data.games.find((x) => x.id === route.id);
+    if (g && g.kind === 'tourney') return <TourneyView game={g} data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
     if (g) return <GameView game={g} data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
   }
   if (route.view === 'new')
@@ -105,7 +113,7 @@ function GameItem({ g, now, onOpen, onDelete }: { g: Game; now: number; onOpen: 
       <div className="row">
         <div style={{ minWidth: 0 }}>
           <b style={{ fontSize: 16 }}>{g.name}</b>
-          <div className="muted" style={{ fontSize: 12.5 }}>{fmtDate(g.createdAt)}</div>
+          <div className="muted" style={{ fontSize: 12.5 }}>{fmtDate(g.createdAt)}{g.kind === 'tourney' ? ' · Turnier' : ' · Cash-Game'}</div>
         </div>
         <div className="spacer" />
         {g.status === 'running' && <span className="badge live"><span className="dot" />Läuft</span>}
@@ -117,7 +125,9 @@ function GameItem({ g, now, onOpen, onDelete }: { g: Game; now: number; onOpen: 
       <div className="meta">
         <div><span>Spielzeit</span><span className="num">{fmtDuration(dur)}</span></div>
         <div><span>Spieler</span><span>{g.players.length}</span></div>
-        <div><span>Buy-ins</span><span className="num">{fmt(s.totalIn)}</span></div>
+        {g.kind === 'tourney'
+          ? <div><span>Preispool</span><span className="num">{fmt(tourneyState(g).prizePool)}</span></div>
+          : <div><span>Buy-ins</span><span className="num">{fmt(s.totalIn)}</span></div>}
         {s.open > 0 && g.status !== 'finished' && <div><span>Angeschrieben</span><span className="num openc">{fmt(s.open)}</span></div>}
       </div>
     </div>
@@ -130,6 +140,10 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
   const [newName, setNewName] = useState('');
   const [extra, setExtra] = useState<MasterPlayer[]>([]);
   const all = [...data.players, ...extra];
+  const [kind, setKind] = useState<'cash' | 'tourney'>('cash');
+  const [tc, setTc] = useState<TourneyConfig>(() => structuredClone(data.lastTourney ?? defaultTourney()));
+  const setT = (fn: (t: TourneyConfig) => void) => setTc((p) => { const n = structuredClone(p); fn(n); return n; });
+  const errs = kind === 'tourney' ? tourneyErrors(tc) : [];
 
   const addNew = () => {
     const n = newName.trim();
@@ -143,6 +157,25 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
   const create = (start: boolean) => {
     const id = uid();
     const now = Date.now();
+    if (kind === 'tourney') {
+      if (errs.length) return;
+      update((d) => {
+        for (const p of extra) if (sel.includes(p.id)) d.players.push(p);
+        const players = sel.map((pid) => ({ id: pid, name: all.find((p) => p.id === pid)!.name }));
+        d.lastTourney = structuredClone(tc);
+        d.games.push({
+          id, kind: 'tourney', tourney: structuredClone(tc), name: name.trim() || 'Turnier', createdAt: now, startedAt: null, endedAt: null,
+          status: 'created', players, seating: drawSeats(players.map((p) => p.id), tc.tables),
+          events: [
+            ...players.map((p) => ({ id: uid(), at: now, type: 'player_added' as const, playerId: p.id })),
+            ...players.map((p) => ({ id: uid(), at: now, type: 'buyin' as const, playerId: p.id, amount: entryPrice(tc), paid: true })),
+          ],
+          final: null, settleMode: 'overview',
+        });
+      });
+      onCreated(id);
+      return;
+    }
     update((d) => {
       for (const p of extra) if (sel.includes(p.id)) d.players.push(p);
       const players = sel.map((pid) => ({ id: pid, name: all.find((p) => p.id === pid)!.name }));
@@ -165,6 +198,10 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
         <button className="btn ghost" onClick={onCancel} style={{ marginBottom: 18 }}>{Icon.back} Zurück</button>
         <h1 style={{ marginBottom: 24 }}>Neues Homegame</h1>
         <div className="card" style={{ padding: 22, display: 'grid', gap: 22 }}>
+          <div className="seg full">
+            <button className={kind === 'cash' ? 'on' : ''} onClick={() => { setKind('cash'); if (name.startsWith('Turnier ')) setName(name.replace('Turnier ', 'Homegame ')); }}>Cash-Game</button>
+            <button className={kind === 'tourney' ? 'on' : ''} onClick={() => { setKind('tourney'); if (name.startsWith('Homegame ')) setName(name.replace('Homegame ', 'Turnier ')); }}>{Icon.trophy} Turnier</button>
+          </div>
           <label className="field">Name des Homegames
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
@@ -186,11 +223,20 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
               <button className="btn" onClick={addNew} disabled={!newName.trim()}>{Icon.plus} Hinzufügen</button>
             </div>
           </div>
+          {kind === 'tourney' && <TourneySetup t={tc} set={setT} />}
+          {errs.length > 0 && <div className="warn">{errs.map((x) => <div key={x}>{x}</div>)}</div>}
+          {kind === 'tourney' ? (
+            <div className="row wrap-row" style={{ justifyContent: 'flex-end' }}>
+              <span className="note" style={{ marginRight: 'auto' }}>Ausgewählte Spieler zahlen je {fmt(entryPrice(tc))} bar (änderbar). Sitzplätze werden ausgelost, die Uhr startest du im Turnier.</span>
+              <button className="btn primary lg" disabled={errs.length > 0} onClick={() => create(false)}>{Icon.shuffle} Turnier anlegen</button>
+            </div>
+          ) : (
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <span className="note" style={{ marginRight: 'auto' }}>Weitere Spieler kannst du jederzeit während des Spiels hinzufügen.</span>
             <button className="btn" onClick={() => create(false)}>Nur anlegen</button>
             <button className="btn primary lg" onClick={() => create(true)}>{Icon.play} Anlegen & starten</button>
           </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,10 @@
 # Pokerkasse
 
-Desktop-App (Windows) zur Verwaltung von Poker-Cashgame-Homegames: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
+Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.2.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.2.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-1.4.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-1.4.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
@@ -26,6 +26,17 @@ Daten liegen lokal unter `%APPDATA%\Pokerkasse\pokerkasse-daten.json` (plus `.ba
 - Modus „Zahlungsvorschläge“: nur Schuldner (Angeschriebenes, mit Minus raus) bekommen einen Gewinner zugewiesen, Rest bar aus der Kasse.
 - Export als PDF oder Text (Zwischenablage / .txt).
 
+## Turnier
+- Beim Anlegen „Turnier“ wählen: Buy-in (fest), optional Bounty (z. B. 20 € + 5 € = 25 € pro Einstieg, nur 20 € in den Preispool), Startchips, Chipwerte, Tische.
+- Blindstruktur: jedes Level mit Small/Big Blind und Dauer, Pausen an beliebiger Stelle. Big-Blind-Ante (1 BB) ab einem frei wählbaren Level.
+- Rebuy und Late Registration jeweils „bis Level X“, optional auch in der Pause danach; maximale Rebuys pro Spieler einstellbar.
+- Auszahlung in Prozent (Standard 50 / 30 / 20), Preisgelder auf 5 € gerundet.
+- Sitzplätze und Dealer-Button werden ausgelost, späte Spieler an den Tisch mit den wenigsten Spielern gesetzt.
+- Color-up: Hinweis in der Pause, wenn kleine Chips ab dem nächsten Level nicht mehr gebraucht werden.
+- TV-Ansicht: großer Level-Timer, Blinds, nächstes Level, nächste Pause, Preispool, Spieler, Ø Stack, Auszahlung. Die letzten 10 Sekunden blinkt sie rot. Hoch- und Querformat werden automatisch erkannt.
+- Windows: Ist ein zweiter Bildschirm angeschlossen, öffnet die TV-Ansicht dort automatisch im Vollbild; das Hauptfenster bleibt die Host-Ansicht. Tastatur in der TV-Ansicht: Leertaste = Pause/Weiter, ←/→ = Level zurück/vor, H = Host.
+- iPhone/iPad: TV-Ansicht per AirPlay-Bildschirmsynchronisierung auf den Fernseher spiegeln, über „Host“ in die Verwaltung wechseln.
+
 ## Entwicklung
 ```
 npm install
@@ -34,7 +45,7 @@ npm start          # als Electron-App starten
 npm test           # Tests der Abrechnungslogik
 npm run dist       # Windows-Installer + Portable bauen (unter Windows)
 ```
-Stack: Electron, React, TypeScript, Vite. Logik in `src/logic.ts`.
+Stack: Electron, React, TypeScript, Vite. Logik in `src/logic.ts` (Cash-Game) und `src/tourney.ts` (Turnier).
 
 ## iPhone (Web-App)
 
