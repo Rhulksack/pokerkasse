@@ -3,12 +3,20 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.9.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.9.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-2.0.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-2.0.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
-Daten liegen lokal unter `%APPDATA%\Pokerkasse\pokerkasse-daten.json` (plus `.bak`-Sicherung). In der Spielerliste gibt es einen Button „Datenordner öffnen“.
+## Cloud und Konten (ab 2.0)
+
+Alle Daten liegen in Firebase (Projekt `pokerkasse-a77a9`, Firestore in Frankfurt, kostenloser Spark-Tarif). Windows-App, Web-App und iPhone zeigen denselben Stand und aktualisieren sich live. Ohne Netz läuft die App mit dem zuletzt geladenen Stand weiter, Änderungen werden nachgereicht.
+
+- Anmeldung mit Benutzername und Passwort (keine E-Mail). Ein vergessenes Passwort lässt sich nicht zurücksetzen: neues Konto anlegen und neu freigeben lassen.
+- Neue Konten wählen ihren Spieler aus („Claim“) und sehen nichts, bis ein Admin unter **Mitglieder** bestätigt.
+- Rollen: **Owner** (Konto `max`, fest), **Admin** (vom Owner ernannt), **Mitglied**. Mitglieder sehen alle Homegames, Abrechnungen und Statistiken, ändern aber nichts. Nur Admins legen Spiele an, bearbeiten, importieren und steuern Turniere per Handy.
+- Die Rechte erzwingen die Firestore-Regeln (`firestore.rules`), nicht nur die Oberfläche. Deploy: `firebase deploy --only firestore:rules`.
+- Datensicherung als JSON gibt es weiter. Admins sehen dort außerdem „In die Cloud übernehmen“, falls auf dem Gerät noch Daten aus Versionen vor 2.0 liegen (Windows: `%APPDATA%\Pokerkasse\pokerkasse-daten.json`).
 
 ## Bedienung im Spiel
 - Spieler anklicken → `1` / `2` / `3` bucht 25 / 30 / 50 €, oder eigenen Betrag eingeben + Enter.
@@ -63,19 +71,17 @@ Startseite → „Statistik“. Tabs Gesamt, Cash-Game und Turnier, Zeitfilter (
 
 ## Fernsteuerung mit dem Handy (Turnier)
 
-Die Windows-App startet im Turnier einen kleinen Server im lokalen Netz (Port 8765). Vor dem Start zeigen Host-Ansicht und TV-Fenster einen QR-Code, später über den Button „Handy“.
+Vor dem Start zeigen Host-Ansicht und TV einen QR-Code, später über den Button „Handy“. Er führt zur Web-App (`https://rhulksack.github.io/pokerkasse/#remote=…`).
 
-- Handy ins selbe WLAN wie der Laptop (oder Laptop in den Hotspot des Handys), QR-Code mit der Kamera scannen.
-- Beim ersten Mal fragt die Windows-Firewall nach – Zugriff für private Netzwerke erlauben.
+- QR-Code scannen, mit einem Admin-Konto anmelden. Läuft über die Cloud, also per WLAN oder mobilen Daten, auch wenn der Laptop woanders steht.
 - Am Handy: Uhr starten/anhalten, ±1 Min, Level vor/zurück, Raus, Rebuy, Late Reg, Spielerdetails, Finaltisch, Ausgleichen, Tisch auflösen, Hinweise schließen, Treppchen bestätigen oder rückgängig machen. Die Abrechnung bleibt am Laptop.
-- Laptop und Handy können gleichzeitig bedienen.
-- iPhone: automatische Sperre für den Abend auf „Nie“ stellen. Nach dem Entsperren verbindet sich die Seite neu.
-- Nur für die Windows-App, nicht für die Web-App auf GitHub Pages.
+- Laptop und Handy können gleichzeitig bedienen; gleichzeitige Eingaben werden zusammengeführt.
+- iPhone: automatische Sperre für den Abend auf „Nie“ stellen.
 
 ## Entwicklung
 ```
 npm install
-npm run dev        # UI im Browser (Daten in localStorage)
+npm run dev        # UI im Browser (Daten in der Cloud)
 npm start          # als Electron-App starten
 npm test           # Tests der Abrechnungslogik
 npm run dist       # Windows-Installer + Portable bauen (unter Windows)
@@ -90,6 +96,6 @@ Die gleiche App läuft als Web-App auf dem iPhone: **https://rhulksack.github.io
 2. **Teilen** → **„Zum Home-Bildschirm“** → Hinzufügen.
 3. Ab jetzt nur noch über das Icon auf dem Home-Bildschirm starten.
 
-Die Daten liegen nur auf dem iPhone (kein Server, keine Kosten). GitHub Pages liefert lediglich die App-Dateien aus; nach dem ersten Start funktioniert sie auch offline. Über **Datensicherung** lassen sich alle Daten als JSON-Datei sichern und zwischen Laptop und iPhone übertragen.
+Anmelden mit demselben Konto wie am Laptop. GitHub Pages liefert die App-Dateien aus, die Daten kommen aus der Cloud; nach dem ersten Start funktioniert sie auch offline mit dem zuletzt geladenen Stand.
 
 Jeder Push auf `main` baut und veröffentlicht die Web-App automatisch (`.github/workflows/pages.yml`).

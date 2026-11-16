@@ -1,10 +1,11 @@
-// Fernsteuerung: Das Handy öffnet über das Heimnetz die Seite, die der Windows-Laptop ausliefert,
-// und steuert damit das laufende Turnier. Der Laptop bleibt die Hauptkasse (speichert, zeigt den TV).
+// Fernsteuerung: Das Handy öffnet die Web-App mit #remote=<Spiel>, meldet sich als Admin an
+// und steuert das laufende Turnier über die Cloud – zeitgleich mit dem Laptop.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { AppData, Game, fmt } from './logic';
 import type { Update } from './App';
-import type { RemoteInfo } from './storage';
+import { PUBLIC_URL, isAdminRole, logout, useSession, useSyncedData } from './cloud';
+import { LoginScreen } from './Auth';
 import { Icon, Modal, useTick } from './ui';
 import {
   TPlayer, anteFor, balDiff, balancePlan, clockAt, colorUpHint, entryPrice, fmtChips, fmtClock, levelNo, maxPer,
@@ -15,13 +16,7 @@ import { tAct } from './tourneyActions';
 
 // ---------------------------------------------------------------- Laptop-Seite: QR-Code
 
-export function useRemoteUrl(gameId: string) {
-  const [info, setInfo] = useState<RemoteInfo | null>(null);
-  useEffect(() => { window.api?.remoteStart?.().then(setInfo).catch(() => setInfo(null)); }, []);
-  if (!info?.running || !info.port) return { url: null as string | null, others: [] as string[], info };
-  const urls = info.ips.map((ip) => `http://${ip}:${info.port}/#remote=${encodeURIComponent(gameId)}`);
-  return { url: urls[0] ?? null, others: urls.slice(1), info };
-}
+export const remoteUrl = (gameId: string) => `${PUBLIC_URL}#remote=${encodeURIComponent(gameId)}`;
 
 export function QrCode({ text, size = 220 }: { text: string; size?: number }) {
   const [src, setSrc] = useState('');
@@ -31,13 +26,11 @@ export function QrCode({ text, size = 220 }: { text: string; size?: number }) {
 
 /** Karte mit QR-Code (Host-Ansicht und TV vor dem Start). */
 export function RemoteCard({ gameId, tv }: { gameId: string; tv?: boolean }) {
-  const { url, others, info } = useRemoteUrl(gameId);
-  if (!window.api?.remoteStart) return null;
-  if (!url) return info ? <div className={tv ? 'tv-remote' : 'note'}>Fernsteuerung nicht verfügbar – der Laptop ist mit keinem Netzwerk verbunden.</div> : null;
+  const url = remoteUrl(gameId);
   if (tv) return (
     <div className="tv-remote">
       <QrCode text={url} size={170} />
-      <div><b>Host-Handy verbinden</b><span>Gleiches WLAN, QR-Code mit der Kamera scannen</span></div>
+      <div><b>Host-Handy verbinden</b><span>QR-Code scannen, mit Admin-Konto anmelden</span></div>
     </div>
   );
   return (
@@ -45,9 +38,8 @@ export function RemoteCard({ gameId, tv }: { gameId: string; tv?: boolean }) {
       <QrCode text={url} size={170} />
       <div className="remote-txt">
         <h3>Mit dem Handy steuern</h3>
-        <p className="muted">Handy ins selbe WLAN wie den Laptop (oder Laptop in den Hotspot des Handys), dann den QR-Code mit der Kamera scannen. Laptop und Handy können gleichzeitig bedienen.</p>
+        <p className="muted">QR-Code mit der Kamera scannen und mit einem Admin-Konto anmelden. Läuft über die Cloud, also per WLAN oder mobilen Daten. Laptop und Handy können gleichzeitig bedienen.</p>
         <code>{url}</code>
-        {others.length > 0 && <p className="note">Falls es nicht klappt: {others.map((u) => <code key={u}>{u}</code>)}</p>}
         <p className="note">Tipp: Am iPhone die automatische Sperre für den Abend auf „Nie“ stellen (Einstellungen → Anzeige & Helligkeit), sonst geht das Display aus.</p>
       </div>
     </div>
@@ -57,67 +49,27 @@ export function RemoteCard({ gameId, tv }: { gameId: string; tv?: boolean }) {
 // ---------------------------------------------------------------- Handy-Seite
 
 export function RemoteApp({ gameId }: { gameId: string }) {
-  const [data, setData] = useState<AppData | null>(null);
-  const [online, setOnline] = useState(false);
+  const s = useSession();
+  if (s === undefined) return <div className="rm"><div className="rm-empty">Lade …</div></div>;
+  if (s === null) return <LoginScreen />;
+  if (!isAdminRole(s.role)) return (
+    <div className="rm"><div className="rm-empty">
+      Die Fernsteuerung ist nur für Admins. Angemeldet als {s.profile.username}.
+      <div style={{ marginTop: 16 }}><button className="btn" onClick={() => { location.hash = ''; location.reload(); }}>Zur Übersicht</button> <button className="btn ghost" onClick={logout}>Abmelden</button></div>
+    </div></div>
+  );
+  return <RemoteCloud gameId={gameId} />;
+}
+
+function RemoteCloud({ gameId }: { gameId: string }) {
   const [err, setErr] = useState('');
-  const dataRef = useRef<AppData | null>(null);
-  dataRef.current = data;
-
-  // Uhr an den Laptop angleichen, damit Timer auf beiden Geräten gleich laufen
-  useEffect(() => {
-    const real = Date.now.bind(Date);
-    const t0 = real();
-    fetch('/api/time').then((r) => r.json()).then(({ now }) => {
-      const off = now - (t0 + real()) / 2;
-      if (Math.abs(off) > 200) Date.now = () => real() + off;
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    let es: EventSource | null = null;
-    let dead = false;
-    const connect = () => {
-      fetch('/api/data').then((r) => r.json()).then((d) => { if (!dead && d) setData(d); }).catch(() => {});
-      es = new EventSource('/api/stream');
-      es.onopen = () => setOnline(true);
-      es.onmessage = (m) => { try { let d = JSON.parse(m.data); if (typeof d === 'string') d = JSON.parse(d); if (d && Array.isArray(d.games)) setData(d); } catch {} };
-      es.onerror = () => setOnline(false);
-    };
-    connect();
-    // iOS beendet die Verbindung im Hintergrund – beim Zurückkommen neu laden
-    const vis = () => { if (document.visibilityState === 'visible') { es?.close(); connect(); } };
-    document.addEventListener('visibilitychange', vis);
-    return () => { dead = true; es?.close(); document.removeEventListener('visibilitychange', vis); };
-  }, []);
-
-  const send = useCallback(async (next: AppData, prev: AppData) => {
-    const game = next.games.find((g) => g.id === gameId);
-    const players = next.players.filter((p) => !prev.players.some((x) => x.id === p.id));
-    for (let i = 0; i < 3; i++) {
-      try {
-        const r = await fetch('/api/game', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game, players }) });
-        if (r.ok) { setErr(''); return; }
-      } catch {}
-      await new Promise((r) => setTimeout(r, 600));
-    }
-    setErr('Keine Verbindung zum Laptop – die letzte Eingabe wurde nicht übertragen.');
-    fetch('/api/data').then((r) => r.json()).then((d) => d && setData(d)).catch(() => {});
-  }, [gameId]);
-
-  const update: Update = useCallback((fn) => {
-    const prev = dataRef.current;
-    if (!prev) return;
-    const next = structuredClone(prev) as AppData;
-    fn(next);
-    dataRef.current = next;
-    setData(next);
-    send(next, prev);
-  }, [send]);
-
-  if (!data) return <div className="rm"><div className="rm-empty">{online ? 'Lade …' : 'Verbinde mit dem Laptop …'}</div></div>;
+  const notify = useCallback((m: string) => setErr(m), []);
+  useEffect(() => { if (!err) return; const t = setTimeout(() => setErr(''), 6000); return () => clearTimeout(t); }, [err]);
+  const { data, update, sync } = useSyncedData(true, notify);
+  if (!data) return <div className="rm"><div className="rm-empty">{sync.error || 'Verbinde mit der Cloud …'}</div></div>;
   const g = data.games.find((x) => x.id === gameId);
   if (!g || g.kind !== 'tourney') return <div className="rm"><div className="rm-empty">Turnier nicht gefunden. QR-Code am Laptop neu scannen.</div></div>;
-  return <RemoteView game={g} data={data} update={update} online={online} err={err} />;
+  return <RemoteView game={g} data={data} update={update} online={sync.online} err={err || (sync.online ? '' : 'Offline – Eingaben werden gesendet, sobald wieder Netz da ist.')} />;
 }
 
 function RemoteView({ game, data, update, online, err }: { game: Game; data: AppData; update: Update; online: boolean; err: string }) {
@@ -308,7 +260,7 @@ function RmHead({ game, online, sub }: { game: Game; online: boolean; sub: strin
   return (
     <header className="rm-head">
       <div><b>{game.name}</b><span className="note">{sub}</span></div>
-      <span className={'rm-dot' + (online ? ' on' : '')}>{online ? 'verbunden' : 'getrennt'}</span>
+      <span className={'rm-dot' + (online ? ' on' : '')}>{online ? 'online' : 'offline'}</span>
     </header>
   );
 }

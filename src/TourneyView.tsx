@@ -21,7 +21,7 @@ type DistEvent = GameEvent extends infer T ? (T extends GameEvent ? Omit<T, 'id'
 
 export interface TvHostActions { onHost?: () => void; onToggle?: () => void; onJump?: (d: 1 | -1) => void; onCloseMoves?: () => void; onEndUndo?: () => void; onEndConfirm?: () => void }
 
-export function TvScreen({ game, onHost, onToggle, onJump, onCloseMoves, onEndUndo, onEndConfirm }: { game: Game } & TvHostActions) {
+export function TvScreen({ game, onHost, onToggle, onJump, onCloseMoves, onEndUndo, onEndConfirm, viewer }: { game: Game; viewer?: boolean } & TvHostActions) {
   const now = useTick(250);
   const t = game.tourney!;
   const st = useMemo(() => tourneyState(game), [game]);
@@ -116,7 +116,7 @@ export function TvScreen({ game, onHost, onToggle, onJump, onCloseMoves, onEndUn
           <div className="tv-label">Gleich geht’s los</div>
           <div className="tv-blinds">Level 1 · {blinds(t.structure.find((x) => x.kind === 'level'), 1)}</div>
           <Seats game={game} />
-          <RemoteCard gameId={game.id} tv />
+          {!viewer && <RemoteCard gameId={game.id} tv />}
         </div>
       ) : (
         <div className="tv-main">
@@ -355,7 +355,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
             : <button className="btn" onClick={() => window.api!.tvOpen!(game.id, false).then(setTvExt)}>{Icon.tv} TV-Fenster öffnen</button>)}
           {!tvExt?.open && <button className="btn" onClick={() => setTvMode(true)}>{Icon.tv} TV-Ansicht</button>}
           <button className="btn" disabled={!canAdd} title={canAdd ? '' : 'Late Registration ist geschlossen'} onClick={() => setModal({ k: 'add' })}>{Icon.user} Spieler</button>
-          {window.api?.remoteStart && <button className="btn" onClick={() => setModal({ k: 'remote' })}>{Icon.user} Handy</button>}
+          <button className="btn" onClick={() => setModal({ k: 'remote' })}>{Icon.user} Handy</button>
           <button className="btn" onClick={() => setModal({ k: 'log' })}>{Icon.list} Protokoll</button>
           <button className="btn primary" disabled={!started || st.alive > 1} title={st.alive > 1 ? 'Erst möglich, wenn nur noch ein Spieler übrig ist' : ''} onClick={() => setModal({ k: 'end' })}>{Icon.flag} Turnier beenden</button>
         </div>

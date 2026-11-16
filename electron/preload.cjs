@@ -9,6 +9,5 @@ contextBridge.exposeInMainWorld('api', {
   tvOpen: (gameId, auto) => ipcRenderer.invoke('tv:open', { gameId, auto }),
   tvClose: () => ipcRenderer.invoke('tv:close'),
   tvState: () => ipcRenderer.invoke('tv:state'),
-  remoteStart: () => ipcRenderer.invoke('remote:start'),
   onTvChanged: (cb) => { const h = (_e, st) => cb(st); ipcRenderer.on('tv:changed', h); return () => ipcRenderer.removeListener('tv:changed', h); },
 });

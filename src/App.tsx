@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { JSX } from 'react';
 import { AppData, Game, MasterPlayer, deriveState, emptyData, fmt, fmtDuration, uid } from './logic';
-import { loadData, saveData } from './storage';
+import { loadData } from './storage';
+import { Session, canSee, isAdminRole, useMembers, useSession, useSyncedData } from './cloud';
+import { AccountModal, LoginScreen, MembersView, PendingScreen } from './Auth';
+import { ViewGame } from './Viewer';
 import { Avatar, Icon, Modal, fmtDate, useNow } from './ui';
 import GameView from './GameView';
 import TourneyView, { TvWindow } from './TourneyView';
@@ -12,42 +16,48 @@ import { isAppData, isElectron, isIOS, isStandalone, mergeData, shareOrDownload 
 
 export type Update = (fn: (d: AppData) => void) => void;
 
-type Route = { view: 'home' } | { view: 'new' } | { view: 'players' } | { view: 'stats' } | { view: 'game'; id: string };
+type Route = { view: 'home' } | { view: 'new' } | { view: 'players' } | { view: 'stats' } | { view: 'members' } | { view: 'game'; id: string };
 
 export default function App() {
-  const [data, setData] = useState<AppData | null>(null);
+  const s = useSession();
+  if (s === undefined) return <div className="page"><div className="wrap muted" style={{ paddingTop: 60, textAlign: 'center' }}>Lade …</div></div>;
+  if (s === null) return <LoginScreen />;
+  if (!canSee(s)) return <PendingScreen s={s} />;
+  return <Main s={s} />;
+}
+
+function Main({ s }: { s: Session }) {
+  const admin = isAdminRole(s.role);
+  const [toast, setToast] = useState('');
+  const notify = useCallback((m: string) => setToast(m), []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t); }, [toast]);
+  const { data, update, replace, sync } = useSyncedData(admin, notify);
   const [route, setRoute] = useState<Route>({ view: 'home' });
+  const members = useMembers(admin);
+  const openClaims = members.filter((m) => m.claim).length;
 
-  useEffect(() => { loadData().then((d) => setData(d ?? emptyData())); }, []);
-  useEffect(() => window.api?.onDataChanged?.((d) => setData(d)), []);
-
-  const update: Update = useCallback((fn) => {
-    setData((prev) => {
-      const next = structuredClone(prev!) as AppData;
-      fn(next);
-      saveData(next);
-      return next;
-    });
-  }, []);
-
-  if (!data) return null;
+  if (!data) return <div className="page"><div className="wrap muted" style={{ paddingTop: 60, textAlign: 'center' }}>{sync.error || 'Lade Daten …'}</div></div>;
 
   const tv = location.hash.match(/^#tv=(.+)$/);
   if (tv) return <TvWindow gameId={decodeURIComponent(tv[1])} data={data} />;
 
-  if (route.view === 'game') {
-    const g = data.games.find((x) => x.id === route.id);
-    if (g && g.kind === 'tourney') return <TourneyView game={g} data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
-    if (g) return <GameView game={g} data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
-  }
-  if (route.view === 'new')
-    return <NewGame data={data} update={update} onCancel={() => setRoute({ view: 'home' })} onCreated={(id) => setRoute({ view: 'game', id })} />;
-  if (route.view === 'stats') return <StatsView data={data} onBack={() => setRoute({ view: 'home' })} />;
-  if (route.view === 'players') return <PlayersView data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
-  return <Home data={data} update={update} replace={(d) => { setData(d); saveData(d); }} open={(id) => setRoute({ view: 'game', id })} go={setRoute} />;
+  const home = () => setRoute({ view: 'home' });
+  let view: JSX.Element;
+  const g = route.view === 'game' ? data.games.find((x) => x.id === route.id) : undefined;
+  if (g && !admin) view = <ViewGame game={g} data={data} update={update} onBack={home} />;
+  else if (g && g.kind === 'tourney') view = <TourneyView game={g} data={data} update={update} onBack={home} />;
+  else if (g) view = <GameView game={g} data={data} update={update} onBack={home} />;
+  else if (route.view === 'new' && admin) view = <NewGame data={data} update={update} onCancel={home} onCreated={(id) => setRoute({ view: 'game', id })} />;
+  else if (route.view === 'stats') view = <StatsView data={data} onBack={home} />;
+  else if (route.view === 'players' && admin) view = <PlayersView data={data} update={update} onBack={home} />;
+  else if (route.view === 'members' && admin) view = <MembersView s={s} players={data.players} onBack={home} />;
+  else view = <Home s={s} data={data} update={update} replace={replace} open={(id) => setRoute({ view: 'game', id })} go={setRoute} openClaims={openClaims} online={sync.online} />;
+  return <>{view}{toast && <div className="toast cloud-toast">{toast}</div>}</>;
 }
 
-function Home({ data, update, replace, open, go }: { data: AppData; update: Update; replace: (d: AppData) => void; open: (id: string) => void; go: (r: Route) => void }) {
+function Home({ s, data, update, replace, open, go, openClaims, online }: { s: Session; data: AppData; update: Update; replace: (d: AppData) => void; open: (id: string) => void; go: (r: Route) => void; openClaims: number; online: boolean }) {
+  const admin = isAdminRole(s.role);
+  const [account, setAccount] = useState(false);
   const running = data.games.filter((g) => g.status !== 'finished').sort((a, b) => b.createdAt - a.createdAt);
   const finished = data.games.filter((g) => g.status === 'finished').sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   const now = useNow(running.length > 0);
@@ -59,7 +69,7 @@ function Home({ data, update, replace, open, go }: { data: AppData; update: Upda
       <div className="wrap">
         {!isElectron() && isIOS() && !isStandalone() && (
           <div className="warn" style={{ marginBottom: 18 }}>
-            Füge die App über <b>Teilen → „Zum Home-Bildschirm“</b> hinzu und öffne sie von dort. Nur dann bleiben deine Daten dauerhaft gespeichert und die App läuft offline.
+            Tipp: Über <b>Teilen → „Zum Home-Bildschirm“</b> hinzufügen. Dann startet die Pokerkasse wie eine App, auch ohne Netz mit dem zuletzt geladenen Stand.
           </div>
         )}
         <div className="row home-head" style={{ marginBottom: 30 }}>
@@ -67,19 +77,23 @@ function Home({ data, update, replace, open, go }: { data: AppData; update: Upda
             <div className="brand-logo">{Icon.spade}</div>
             <div>
               <h1>Pokerkasse</h1>
-              <div className="muted" style={{ fontSize: 13.5 }}>Homegames, Buy-ins und Abrechnung</div>
+              <div className="muted" style={{ fontSize: 13.5 }}>
+                <span className={'sync-dot' + (online ? ' on' : '')} title={online ? 'Mit der Cloud verbunden' : 'Keine Verbindung – Änderungen werden nachgereicht'} />{online ? 'Online' : 'Offline'} · {s.profile.username}
+              </div>
             </div>
           </div>
           <div className="spacer" />
+          <button className="btn" onClick={() => setAccount(true)}>{Icon.user} Konto</button>
           <button className="btn" onClick={() => setBackup(true)}>{Icon.save} Datensicherung</button>
           <button className="btn" onClick={() => go({ view: 'stats' })}>{Icon.chart} Statistik</button>
-          <button className="btn" onClick={() => go({ view: 'players' })}>{Icon.users} Spielerliste ({data.players.length})</button>
-          <button className="btn primary lg" onClick={() => go({ view: 'new' })}>{Icon.plus} Neues Homegame</button>
+          {admin && <button className="btn" onClick={() => go({ view: 'members' })}>{Icon.users} Mitglieder{openClaims > 0 && <span className="pill-count">{openClaims}</span>}</button>}
+          {admin && <button className="btn" onClick={() => go({ view: 'players' })}>{Icon.users} Spielerliste ({data.players.length})</button>}
+          {admin && <button className="btn primary lg" onClick={() => go({ view: 'new' })}>{Icon.plus} Neues Homegame</button>}
         </div>
 
         <h3>Laufende Homegames</h3>
         {running.length === 0 ? (
-          <div className="empty">Kein laufendes Homegame. Lege oben rechts ein neues an.</div>
+          <div className="empty">Kein laufendes Homegame.{admin ? ' Lege oben rechts ein neues an.' : ''}</div>
         ) : (
           <div className="game-list">
             {running.map((g) => <GameItem key={g.id} g={g} now={now} onOpen={() => open(g.id)} />)}
@@ -91,11 +105,12 @@ function Home({ data, update, replace, open, go }: { data: AppData; update: Upda
           <div className="empty">Noch keine abgeschlossenen Homegames.</div>
         ) : (
           <div className="game-list">
-            {finished.map((g) => <GameItem key={g.id} g={g} now={now} onOpen={() => open(g.id)} onDelete={() => setDel(g)} />)}
+            {finished.map((g) => <GameItem key={g.id} g={g} now={now} onOpen={() => open(g.id)} onDelete={admin ? () => setDel(g) : undefined} />)}
           </div>
         )}
       </div>
-      {backup && <BackupModal data={data} replace={replace} onClose={() => setBackup(false)} />}
+      {backup && <BackupModal data={data} replace={replace} admin={admin} onClose={() => setBackup(false)} />}
+      {account && <AccountModal s={s} onClose={() => setAccount(false)} />}
       {del && (
         <Modal title="Homegame löschen?" onClose={() => setDel(null)}
           footer={<>
@@ -265,7 +280,6 @@ function PlayersView({ data, update, onBack }: { data: AppData; update: Update; 
         <button className="btn ghost" onClick={onBack} style={{ marginBottom: 18 }}>{Icon.back} Zurück</button>
         <div className="row" style={{ marginBottom: 24 }}>
           <h1>Spielerliste</h1><div className="spacer" />
-          {window.api && <button className="btn ghost" onClick={() => window.api!.openDataFolder()}>{Icon.folder} Datenordner öffnen</button>}
         </div>
         <div className="card" style={{ padding: 22, display: 'grid', gap: 16 }}>
           <div className="row">
@@ -300,7 +314,9 @@ function PlayersView({ data, update, onBack }: { data: AppData; update: Update; 
   );
 }
 
-function BackupModal({ data, replace, onClose }: { data: AppData; replace: (d: AppData) => void; onClose: () => void }) {
+function BackupModal({ data, replace, admin, onClose }: { data: AppData; replace: (d: AppData) => void; admin: boolean; onClose: () => void }) {
+  const [local, setLocal] = useState<AppData | null>(null);
+  useEffect(() => { if (admin) loadData().then((d) => setLocal(d && d.games.length + d.players.length > 0 ? d : null)).catch(() => {}); }, [admin]);
   const [msg, setMsg] = useState('');
   const [pending, setPending] = useState<AppData | null>(null);
   const exportAll = async () => {
@@ -322,12 +338,13 @@ function BackupModal({ data, replace, onClose }: { data: AppData; replace: (d: A
   return (
     <Modal title="Datensicherung" onClose={onClose} footer={<button className="btn" onClick={onClose}>Schließen</button>}>
       <p className="muted" style={{ margin: 0 }}>
-        Alle Daten liegen nur auf diesem Gerät. Mit einer Sicherungsdatei kannst du sie aufheben oder zwischen Laptop und iPhone übertragen (z. B. per AirDrop, Dateien-App oder Mail).
+        Alle Daten liegen in der Cloud und sind auf jedem Gerät nach dem Anmelden da. Eine Sicherungsdatei ist eine zusätzliche Kopie für den Notfall.
       </p>
       <div className="section">
         <h3>Exportieren</h3>
         <button className="btn primary" onClick={exportAll}>{Icon.save} Sicherung erstellen ({data.games.length} Homegames, {data.players.length} Spieler)</button>
       </div>
+      {admin && <>
       <div className="section">
         <h3>Importieren</h3>
         <label className="btn" style={{ position: 'relative' }}>
@@ -344,10 +361,18 @@ function BackupModal({ data, replace, onClose }: { data: AppData; replace: (d: A
               }}>Zusammenführen</button>
               <button className="btn danger" onClick={() => { replace(pending); setPending(null); setMsg('Alle Daten wurden durch die Sicherung ersetzt.'); }}>Alles ersetzen</button>
             </div>
-            <div className="note">Zusammenführen übernimmt neue Homegames und Spieler und behält deine vorhandenen. Ersetzen löscht die Daten auf diesem Gerät.</div>
+            <div className="note">Zusammenführen übernimmt neue Homegames und Spieler und behält deine vorhandenen. Ersetzen löscht alle Homegames in der Cloud, die nicht in der Datei sind.</div>
           </div>
         )}
       </div>
+      </>}
+      {local && (
+        <div className="section">
+          <h3>Alte Daten dieses Geräts</h3>
+          <div className="muted" style={{ fontSize: 13.5 }}>Hier liegen noch {local.games.length} Homegames und {local.players.length} Spieler aus der Zeit vor der Cloud.</div>
+          <div><button className="btn" onClick={() => { const m = mergeData(data, local); replace(m.data); setLocal(null); setMsg(`In die Cloud übernommen: ${m.added} neu, ${m.updated} aktualisiert.`); }}>{Icon.save} In die Cloud übernehmen</button></div>
+        </div>
+      )}
       {msg && <div className="badge cash" style={{ height: 'auto', padding: '8px 12px', whiteSpace: 'normal' }}>{msg}</div>}
     </Modal>
   );

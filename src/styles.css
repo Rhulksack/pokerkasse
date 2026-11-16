@@ -627,7 +627,7 @@ label.check input[type=checkbox] { width: 20px; height: 20px; accent-color: var(
 .rm-who { flex: 1; min-width: 0; display: grid; gap: 2px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 0; }
 .rm-who b { font-size: 16px; display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rm-pod { display: flex; gap: 10px; align-items: baseline; justify-content: center; font-size: 20px; }
-.rm .toast { bottom: calc(env(safe-area-inset-bottom) + 14px); }
+.rm .toast { top: auto; bottom: calc(env(safe-area-inset-bottom) + 14px); }
 
 /* v1.7.1 Handy-Fernsteuerung: Scrollen + kompakte Sheets */
 .modal-body { display: grid; gap: 16px; min-width: 0; }
@@ -723,3 +723,13 @@ html.remote .modal-foot .btn { flex: 1; min-height: 44px; }
 }
 .house-kpis { grid-template-columns: repeat(4, 1fr); margin-top: 10px; }
 @media (max-width: 760px) { .house-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Cloud / Konten ---------- */
+.auth-page .wrap { padding-top: 48px; }
+.sync-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 6px; vertical-align: 1px; }
+.sync-dot.on { background: var(--green); }
+.pill-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; margin-left: 4px; }
+.cloud-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 200; background: #1d2130; border: 1px solid var(--line, #2a2f40); color: var(--text, #e8eaf0); padding: 12px 18px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.4); max-width: calc(100vw - 32px); }
+.h.member { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; }
+.viewer-tv { position: relative; min-height: 100vh; }
+.viewer-back { position: fixed; bottom: calc(env(safe-area-inset-bottom) + 14px); left: 14px; z-index: 50; opacity: .9; }

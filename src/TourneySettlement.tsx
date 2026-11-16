@@ -6,7 +6,7 @@ import { fileBase, toHtmlTourney, toTextTourney } from './exporter';
 import { printHtml, shareOrDownload, shareText } from './platform';
 import { tourneySettlement } from './tourney';
 
-export default function TourneySettlement({ game, onBack, onReopen, onPodium }: { game: Game; update: Update; onBack: () => void; onReopen: () => void; onPodium?: () => void }) {
+export default function TourneySettlement({ game, onBack, onReopen, onPodium }: { game: Game; update: Update; onBack: () => void; onReopen?: () => void; onPodium?: () => void }) {
   const { st, rows, payIn, payOut, rest, unassignedBounties } = tourneySettlement(game);
   const t = game.tourney!;
   const s = deriveState(game);
@@ -34,7 +34,7 @@ export default function TourneySettlement({ game, onBack, onReopen, onPodium }: 
         <div className="actions">
           {onPodium && <button className="btn" onClick={onPodium}>{Icon.tv} Treppchen</button>}
           <button className="btn" onClick={() => setLog(true)}>{Icon.list} Protokoll</button>
-          <button className="btn" onClick={onReopen}>{Icon.undo} Turnier fortsetzen</button>
+          {onReopen && <button className="btn" onClick={onReopen}>{Icon.undo} Turnier fortsetzen</button>}
           <button className="btn" onClick={copy}>{Icon.copy} {window.api ? 'Text kopieren' : 'Text teilen'}</button>
           <button className="btn" onClick={txt}>{Icon.save} Als .txt</button>
           <button className="btn primary" onClick={pdf}>{Icon.pdf} PDF exportieren</button>

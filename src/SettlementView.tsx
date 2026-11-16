@@ -5,7 +5,7 @@ import { Avatar, Icon, Modal, Money, fmtDate, fmtTime } from './ui';
 import { fileBase, settlementOf, toHtml, toText } from './exporter';
 import { printHtml, shareOrDownload, shareText } from './platform';
 
-export default function SettlementView({ game, update, onBack, onReopen }: { game: Game; update: Update; onBack: () => void; onReopen: () => void }) {
+export default function SettlementView({ game, update, onBack, onReopen }: { game: Game; update: Update; onBack: () => void; onReopen?: () => void }) {
   const st = settlementOf(game);
   const s = deriveState(game);
   const [msg, setMsg] = useState('');
@@ -41,7 +41,7 @@ export default function SettlementView({ game, update, onBack, onReopen }: { gam
         <div className="spacer" />
         <div className="actions">
           <button className="btn" onClick={() => setLog(true)}>{Icon.list} Protokoll</button>
-          <button className="btn" onClick={onReopen}>{Icon.pen} Zählung bearbeiten</button>
+          {onReopen && <button className="btn" onClick={onReopen}>{Icon.pen} Zählung bearbeiten</button>}
           <button className="btn" onClick={copy}>{Icon.copy} {window.api ? 'Text kopieren' : 'Text teilen'}</button>
           <button className="btn" onClick={txt}>{Icon.save} Als .txt</button>
           <button className="btn primary" onClick={pdf}>{Icon.pdf} PDF exportieren</button>
