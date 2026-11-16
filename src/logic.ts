@@ -60,6 +60,7 @@ export interface Game {
   tourney?: import('./tourney').TourneyConfig;
   clock?: import('./tourney').Clock;
   seating?: import('./tourney').Seating;
+  finalTable?: { at: number; dismissed?: boolean }; // Finaltisch-Pop-up am TV
 }
 
 export interface AppData {

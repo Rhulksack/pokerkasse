@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game, GameEvent } from '../src/logic';
-import { TourneyConfig, clockAt, clockOps, colorUpHint, defaultTourney, drawSeats, entryPrice, tourneySettlement, tourneyState, windowOpen } from '../src/tourney';
+import { TourneyConfig, breakTable, clockAt, clockOps, colorUpHint, defaultTourney, drawSeats, entryPrice, seatLate, tableAdvice, tourneySettlement, tourneyState, windowOpen } from '../src/tourney';
+import { moneyStatus } from '../src/TourneyView';
 
 const cfg = (o: Partial<TourneyConfig> = {}): TourneyConfig => ({
   ...defaultTourney(),
@@ -90,12 +91,46 @@ describe('Turnier', () => {
     const t = cfg({ denominations: [25, 100, 500] });
     expect(colorUpHint(t, 2)).toEqual({ chips: [25], into: 100 });
   });
-  it('Sitzplätze: alle verteilt, Tische ausgeglichen, Button gesetzt', () => {
-    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-    const s = drawSeats(ids, 2);
-    expect(Object.keys(s.seats).length).toBe(7);
+  it('Sitzplätze: Tische aus max. pro Tisch, ausgeglichen, gleicher Button-Platz', () => {
+    const ids = Array.from({ length: 13 }, (_, i) => 'p' + i);
+    const s = drawSeats(ids, 9);
+    expect(Object.keys(s.seats).length).toBe(13);
     const c1 = ids.filter((i) => s.seats[i].table === 1).length;
-    expect(Math.abs(c1 - (7 - c1))).toBeLessThanOrEqual(1);
-    expect(Object.keys(s.buttons).length).toBe(2);
+    expect([6, 7]).toContain(c1);
+    expect(s.buttons[1]).toBe(s.buttons[2]);
+    expect(s.buttons[1]).toBeLessThanOrEqual(6);
+    expect(Object.keys(drawSeats(ids.slice(0, 6), 9).buttons).length).toBe(1);
+    for (let k = 0; k < 2; k++) { const t = ids.filter((i) => s.seats[i].table === k + 1).map((i) => s.seats[i].seat).sort((a, b) => a - b); expect(new Set(t).size).toBe(t.length); }
+  });
+  it('Tisch-Hinweise: auflösen, ausgleichen, Finaltisch', () => {
+    const sg: any = { seats: {}, buttons: { 1: 1, 2: 1, 3: 1 } };
+    const put = (id: string, table: number, seat: number) => { sg.seats[id] = { table, seat }; };
+    ['a', 'b', 'c', 'd', 'e'].forEach((x, i) => put(x, 1, i + 1));
+    ['f', 'g', 'h', 'i', 'j'].forEach((x, i) => put(x, 2, i + 2));
+    put('k', 3, 1); put('l', 3, 4);
+    const alive = Object.keys(sg.seats);
+    const adv = tableAdvice(sg, alive, 6);
+    expect(adv).toEqual({ kind: 'break', table: 3, count: 2 });
+    const r = breakTable(sg, 3, alive, 6);
+    expect(r.moves.length).toBe(2);
+    expect(new Set(r.moves.map((m) => m.table))).toEqual(new Set([1, 2]));
+    for (const tb of [1, 2]) { const seats = alive.filter((x) => r.seating.seats[x].table === tb).map((x) => r.seating.seats[x].seat); expect(new Set(seats).size).toBe(6); expect(Math.max(...seats)).toBe(6); }
+    expect(r.seating.seats.a).toEqual(sg.seats.a);
+    expect(tableAdvice(sg, ['a', 'b', 'c', 'd', 'f', 'g'], 6)).toEqual({ kind: 'final' });
+    expect(tableAdvice(sg, ['a', 'b', 'c', 'd', 'e', 'f', 'k'], 6)?.kind).toBe('break');
+    expect(tableAdvice(sg, ['a', 'b', 'c', 'd', 'e', 'f'], 5)).toEqual({ kind: 'balance', from: 1, to: 2, fromCount: 5, toCount: 1 });
+  });
+  it('Late Reg eröffnet neuen Tisch, wenn alle voll', () => {
+    const ids = ['a', 'b', 'c', 'd'];
+    const s = drawSeats(ids, 4);
+    const s2 = seatLate(s, 'e', [...ids, 'e'], 4);
+    expect(s2.seats.e.table).toBe(2);
+  });
+  it('Bubble und Geldränge', () => {
+    const pr = [70, 40, 30];
+    expect(moneyStatus(5, pr)).toBeNull();
+    expect(moneyStatus(4, pr)?.text).toContain('Bubble');
+    expect(moneyStatus(3, pr)?.text).toContain('Platz 3');
+    expect(moneyStatus(2, pr)?.text).toContain('Heads-up');
   });
 });

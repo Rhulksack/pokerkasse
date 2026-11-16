@@ -18,7 +18,8 @@ export interface TourneyConfig {
   rebuy: Window & { maxPerPlayer: number | null };
   lateReg: Window;
   payouts: number[]; // Prozent je Platz
-  tables: number;
+  maxPerTable: number; // max. Spieler pro Tisch, daraus ergibt sich die Tischanzahl
+  tables?: number; // veraltet (v1.4.0)
 }
 
 export interface Clock { idx: number; remainingMs: number; runningSince: number | null }
@@ -35,8 +36,11 @@ export const defaultTourney = (): TourneyConfig => ({
   rebuy: { enabled: true, untilLevel: 6, inBreakAfter: true, maxPerPlayer: null },
   lateReg: { enabled: true, untilLevel: 6, inBreakAfter: true },
   payouts: [50, 30, 20],
-  tables: 1,
+  maxPerTable: 9,
 });
+
+export const maxPer = (t: TourneyConfig) => Math.max(2, t.maxPerTable || 9);
+export const tablesNeeded = (n: number, max: number) => Math.max(1, Math.ceil(n / Math.max(2, max)));
 
 export const entryPrice = (t: TourneyConfig) => t.buyIn + (t.bounty ?? 0);
 
@@ -209,39 +213,81 @@ export function tourneySettlement(game: Game) {
 
 const shuffle = <T,>(a: T[]) => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
 
-export function drawSeats(ids: string[], tables: number): Seating {
-  const n = Math.max(1, Math.min(tables, ids.length || 1));
+/** Alle Spieler neu verlosen: so wenige Tische wie nötig, gleichmäßig verteilt, ein Button-Sitz für alle Tische. */
+export function drawSeats(ids: string[], maxPerTable: number): Seating {
+  const n = tablesNeeded(ids.length, maxPerTable);
   const seats: Seating['seats'] = {};
   const byTable: string[][] = Array.from({ length: n }, () => []);
   shuffle(ids).forEach((id, i) => byTable[i % n].push(id));
+  const minSize = Math.max(1, Math.min(...byTable.map((l) => l.length)));
+  const btn = 1 + Math.floor(Math.random() * minSize);
   const buttons: Seating['buttons'] = {};
   byTable.forEach((list, ti) => {
     const nums = shuffle(list.map((_, i) => i + 1));
     list.forEach((id, i) => { seats[id] = { table: ti + 1, seat: nums[i] }; });
-    if (list.length) buttons[ti + 1] = nums[Math.floor(Math.random() * nums.length)];
+    if (list.length) buttons[ti + 1] = btn;
   });
   return { seats, buttons };
 }
 
-/** Neuen Spieler an den Tisch mit den wenigsten aktiven Spielern setzen (freier Platz mit kleinster Nummer). */
-export function seatLate(seating: Seating | undefined, id: string, aliveIds: string[], tables: number): Seating {
+/** Tische, an denen noch aktive Spieler sitzen, mit Spielerzahl. */
+export function tablesInUse(seating: Seating | undefined, aliveIds: string[]) {
+  const m = new Map<number, number>();
+  if (seating) for (const id of aliveIds) { const s = seating.seats[id]; if (s) m.set(s.table, (m.get(s.table) ?? 0) + 1); }
+  return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([table, count]) => ({ table, count }));
+}
+
+const freeSeats = (sg: Seating, aliveIds: string[], table: number, max: number) => {
+  const taken = new Set(aliveIds.filter((x) => sg.seats[x]?.table === table).map((x) => sg.seats[x].seat));
+  return Array.from({ length: max }, (_, i) => i + 1).filter((x) => !taken.has(x));
+};
+
+/** Neuen Spieler an den Tisch mit den wenigsten Spielern setzen (zufälliger freier Platz), bei vollen Tischen neuen Tisch eröffnen. */
+export function seatLate(seating: Seating | undefined, id: string, aliveIds: string[], max: number): Seating {
   const sg: Seating = seating ? structuredClone(seating) : { seats: {}, buttons: {} };
-  const count = (tb: number) => aliveIds.filter((x) => sg.seats[x]?.table === tb).length;
-  let best = 1;
-  for (let tb = 1; tb <= Math.max(1, tables); tb++) if (count(tb) < count(best)) best = tb;
-  const taken = new Set(aliveIds.filter((x) => sg.seats[x]?.table === best).map((x) => sg.seats[x].seat));
-  let seat = 1; while (taken.has(seat)) seat++;
-  sg.seats[id] = { table: best, seat };
-  if (sg.buttons[best] == null) sg.buttons[best] = seat;
+  const others = aliveIds.filter((x) => x !== id);
+  const used = tablesInUse(sg, others).filter((x) => x.count < max).sort((a, b) => a.count - b.count);
+  let table: number;
+  if (used.length) table = used[0].table;
+  else { const all = tablesInUse(sg, others).map((x) => x.table); table = all.length ? Math.max(...all) + 1 : 1; }
+  const free = freeSeats(sg, others, table, max);
+  const seat = free[Math.floor(Math.random() * free.length)] ?? 1;
+  sg.seats[id] = { table, seat };
+  if (sg.buttons[table] == null) sg.buttons[table] = seat;
   return sg;
 }
 
-export function tableBalance(seating: Seating | undefined, aliveIds: string[], tables: number) {
-  if (!seating || tables < 2) return null;
-  const counts = Array.from({ length: tables }, (_, i) => aliveIds.filter((x) => seating.seats[x]?.table === i + 1).length);
-  const max = Math.max(...counts), min = Math.min(...counts);
-  if (max - min < 2) return null;
-  return { from: counts.indexOf(max) + 1, to: counts.indexOf(min) + 1, counts };
+/** Hinweise für den Host: Finaltisch, Tisch auflösen, Tische ausgleichen. */
+export function tableAdvice(seating: Seating | undefined, aliveIds: string[], max: number) {
+  const used = tablesInUse(seating, aliveIds);
+  if (used.length < 2) return null;
+  if (aliveIds.length <= max) return { kind: 'final' as const };
+  if (aliveIds.length <= (used.length - 1) * max) {
+    const smallest = [...used].sort((a, b) => a.count - b.count || b.table - a.table)[0];
+    return { kind: 'break' as const, table: smallest.table, count: smallest.count };
+  }
+  const sorted = [...used].sort((a, b) => a.count - b.count);
+  const lo = sorted[0], hi = sorted[sorted.length - 1];
+  if (hi.count - lo.count >= 2) return { kind: 'balance' as const, from: hi.table, to: lo.table, fromCount: hi.count, toCount: lo.count };
+  return null;
+}
+
+/** Tisch auflösen: dessen Spieler zufällig auf freie Plätze der übrigen Tische verteilen (immer an den leersten Tisch). */
+export function breakTable(seating: Seating, table: number, aliveIds: string[], max: number): { seating: Seating; moves: { id: string; table: number; seat: number }[] } {
+  const sg: Seating = structuredClone(seating);
+  const moving = shuffle(aliveIds.filter((x) => sg.seats[x]?.table === table));
+  const moves: { id: string; table: number; seat: number }[] = [];
+  for (const id of moving) {
+    const placed = aliveIds.filter((x) => !moving.includes(x) || moves.some((m) => m.id === x));
+    const target = tablesInUse(sg, placed).filter((x) => x.table !== table && x.count < max).sort((a, b) => a.count - b.count)[0];
+    if (!target) break;
+    const free = freeSeats(sg, placed, target.table, max);
+    const seat = free[Math.floor(Math.random() * free.length)];
+    sg.seats[id] = { table: target.table, seat };
+    moves.push({ id, table: target.table, seat });
+  }
+  delete sg.buttons[table];
+  return { seating: sg, moves };
 }
 
 // ---------- Color-up ----------

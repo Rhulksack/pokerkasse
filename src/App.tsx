@@ -5,7 +5,7 @@ import { Avatar, Icon, Modal, fmtDate, useNow } from './ui';
 import GameView from './GameView';
 import TourneyView, { TvWindow } from './TourneyView';
 import TourneySetup, { tourneyErrors } from './TourneySetup';
-import { TourneyConfig, defaultTourney, drawSeats, entryPrice, tourneyState } from './tourney';
+import { TourneyConfig, defaultTourney, drawSeats, entryPrice, maxPer, tourneyState } from './tourney';
 import { isAppData, isElectron, isIOS, isStandalone, mergeData, shareOrDownload } from './platform';
 
 export type Update = (fn: (d: AppData) => void) => void;
@@ -141,7 +141,7 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
   const [extra, setExtra] = useState<MasterPlayer[]>([]);
   const all = [...data.players, ...extra];
   const [kind, setKind] = useState<'cash' | 'tourney'>('cash');
-  const [tc, setTc] = useState<TourneyConfig>(() => structuredClone(data.lastTourney ?? defaultTourney()));
+  const [tc, setTc] = useState<TourneyConfig>(() => ({ ...defaultTourney(), ...structuredClone(data.lastTourney ?? {}) }));
   const setT = (fn: (t: TourneyConfig) => void) => setTc((p) => { const n = structuredClone(p); fn(n); return n; });
   const errs = kind === 'tourney' ? tourneyErrors(tc) : [];
 
@@ -165,7 +165,7 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
         d.lastTourney = structuredClone(tc);
         d.games.push({
           id, kind: 'tourney', tourney: structuredClone(tc), name: name.trim() || 'Turnier', createdAt: now, startedAt: null, endedAt: null,
-          status: 'created', players, seating: drawSeats(players.map((p) => p.id), tc.tables),
+          status: 'created', players, seating: drawSeats(players.map((p) => p.id), maxPer(tc)),
           events: [
             ...players.map((p) => ({ id: uid(), at: now, type: 'player_added' as const, playerId: p.id })),
             ...players.map((p) => ({ id: uid(), at: now, type: 'buyin' as const, playerId: p.id, amount: entryPrice(tc), paid: true })),
@@ -223,7 +223,7 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
               <button className="btn" onClick={addNew} disabled={!newName.trim()}>{Icon.plus} Hinzufügen</button>
             </div>
           </div>
-          {kind === 'tourney' && <TourneySetup t={tc} set={setT} />}
+          {kind === 'tourney' && <TourneySetup t={tc} set={setT} players={sel.length} />}
           {errs.length > 0 && <div className="warn">{errs.map((x) => <div key={x}>{x}</div>)}</div>}
           {kind === 'tourney' ? (
             <div className="row wrap-row" style={{ justifyContent: 'flex-end' }}>

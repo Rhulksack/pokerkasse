@@ -1,4 +1,4 @@
-import { TourneyConfig, StructItem, entryPrice, levelNo, uselessDenoms } from './tourney';
+import { TourneyConfig, StructItem, entryPrice, levelNo, maxPer, tablesNeeded, uselessDenoms } from './tourney';
 import { fmt } from './logic';
 import { Icon, NumInput } from './ui';
 
@@ -15,10 +15,11 @@ export function tourneyErrors(t: TourneyConfig): string[] {
   const sum = t.payouts.reduce((a, b) => a + b, 0);
   if (Math.abs(sum - 100) > 0.001) e.push(`Auszahlung ergibt ${sum} % statt 100 %.`);
   if (t.rebuy.enabled && !(t.rebuyChips > 0)) e.push('Rebuy-Chips fehlen.');
+  if (!(t.maxPerTable >= 2)) e.push('Max. Spieler pro Tisch muss mindestens 2 sein.');
   return e;
 }
 
-export default function TourneySetup({ t, set }: { t: TourneyConfig; set: Set }) {
+export default function TourneySetup({ t, set, players }: { t: TourneyConfig; set: Set; players: number }) {
   const levels = t.structure.filter((x) => x.kind === 'level').length;
   const setItem = (i: number, fn: (x: StructItem) => void) => set((c) => fn(c.structure[i]));
   const move = (i: number, d: number) => set((c) => { const j = i + d; if (j < 0 || j >= c.structure.length) return; [c.structure[i], c.structure[j]] = [c.structure[j], c.structure[i]]; });
@@ -42,13 +43,14 @@ export default function TourneySetup({ t, set }: { t: TourneyConfig; set: Set })
           <label className="field">Chipwerte (mit Komma getrennt)
             <input className="input" defaultValue={t.denominations.join(', ')} onChange={(e) => set((c) => { c.denominations = e.target.value.split(/[,;\s]+/).map(Number).filter((x) => x > 0).sort((a, b) => a - b); })} />
           </label>
-          <label className="field">Tische<NumInput value={t.tables} onChange={(v) => set((c) => { c.tables = Math.max(1, Math.min(10, v ?? 1)); })} /></label>
+          <label className="field">Max. Spieler pro Tisch<NumInput value={t.maxPerTable} onChange={(v) => set((c) => { c.maxPerTable = Math.min(12, v ?? 0); })} /></label>
         </div>
         <label className="check">
           <input type="checkbox" checked={t.bounty != null} onChange={(e) => set((c) => { c.bounty = e.target.checked ? 5 : null; })} />
           <span>Bounties</span>
           {t.bounty != null && <NumInput value={t.bounty} onChange={(v) => set((c) => { c.bounty = v ?? 0; })} suffix="€" width={110} />}
         </label>
+        {players > 0 && t.maxPerTable >= 2 && <div className="note">{players} Spieler → {tablesNeeded(players, maxPer(t))} Tisch{tablesNeeded(players, maxPer(t)) > 1 ? 'e' : ''}. Sitzplätze und ein Dealer-Button-Platz (gleich für alle Tische) werden ausgelost. Finaltisch, sobald alle an einen Tisch passen.</div>}
         <div className="note">Pro Einstieg zahlt jeder <b>{fmt(entryPrice(t))}</b>{t.bounty != null ? ` – davon ${fmt(t.buyIn)} in den Preispool und ${fmt(t.bounty)} Bounty. Die Bounty bekommt, wer den Spieler rauswirft.` : '.'}</div>
         {useless.length > 0 && <div className="note">Chips {useless.join(', ')} werden schon ab Level 1 nicht gebraucht.</div>}
       </div>

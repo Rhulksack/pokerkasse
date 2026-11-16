@@ -521,3 +521,26 @@ label.check input[type=checkbox] { width: 20px; height: 20px; accent-color: var(
   .form-grid { grid-template-columns: 1fr 1fr; }
 }
 .tv-pay span { font-size: inherit !important; color: var(--text) !important; text-transform: none !important; letter-spacing: 0 !important; font-weight: 700 !important; }
+
+/* TV: Status, Ausscheiden, Finaltisch */
+.tv { grid-template-rows: auto auto 1fr; }
+.tv > .tv-head { grid-row: 1; }
+.tv > .tv-main { grid-row: 3; }
+.tv-status { grid-row: 2; justify-self: center; margin-top: 1.2vh; font-size: clamp(15px, 3.4vmin, 48px); font-weight: 700; padding: .35em 1.1em; border-radius: 999px; text-align: center; }
+.tv-status.green { background: var(--green-soft); color: var(--green); }
+.tv-status.red { background: var(--red-soft); color: var(--red); animation: tvPulse 1.8s infinite; }
+@keyframes tvPulse { 50% { opacity: .6; } }
+.tv-status.gold { background: var(--amber-soft); color: var(--amber); }
+.tv-bust { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30; display: flex; align-items: center; gap: 1em; padding: .9em 1.5em; border-radius: 22px; background: rgba(18, 21, 28, .96); border: 2px solid var(--red); box-shadow: 0 30px 90px rgba(0, 0, 0, .7); font-size: clamp(18px, 4.6vmin, 64px); white-space: nowrap; width: max-content; max-width: 94vw; animation: bustIn .35s ease-out; }
+.tv-bust b { color: var(--text); }
+.tv-bust span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.tv-bust .tv-bust-place { color: var(--red); font-weight: 800; }
+.tv-bust .tv-bust-prize { color: var(--green); font-weight: 800; }
+@keyframes bustIn { from { opacity: 0; transform: translate(-50%, -40%) scale(.92); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.tv-final { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; background: radial-gradient(ellipse at 50% 30%, rgba(61, 220, 151, .16), transparent 65%), var(--bg); animation: bustIn2 .4s ease-out; cursor: pointer; text-align: center; padding: 4vh 4vw; }
+.tv-final-title { font-size: min(14vw, 20vh); font-weight: 800; color: var(--green); letter-spacing: -.01em; line-height: 1; }
+@keyframes bustIn2 { from { opacity: 0; } to { opacity: 1; } }
+@media (orientation: portrait) {
+  .tv-bust { flex-wrap: wrap; justify-content: center; white-space: normal; text-align: center; font-size: clamp(18px, 6vw, 56px); }
+}
+.tv-final .tv-seat-table { font-size: clamp(16px, 3.4vmin, 46px); }
