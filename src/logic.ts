@@ -17,7 +17,7 @@ interface BaseEvent {
 export type GameEvent =
   | (BaseEvent & { type: 'game_started' })
   | (BaseEvent & { type: 'player_added'; playerId: string })
-  | (BaseEvent & { type: 'buyin'; playerId: string; amount: number; paid: boolean; rebuy?: boolean })
+  | (BaseEvent & { type: 'buyin'; playerId: string; amount: number; paid: boolean; rebuy?: boolean; relabel?: boolean })
   | (BaseEvent & { type: 'bust'; playerId: string; byId?: string | null; final: boolean })
   | (BaseEvent & { type: 'clock'; action: string })
   | (BaseEvent & { type: 'payment'; playerId: string; amount: number })
@@ -60,7 +60,9 @@ export interface Game {
   tourney?: import('./tourney').TourneyConfig;
   clock?: import('./tourney').Clock;
   seating?: import('./tourney').Seating;
-  finalTable?: { at: number; dismissed?: boolean }; // Finaltisch-Pop-up am TV
+  finalTable?: { at: number; dismissed?: boolean }; // Finaltisch-Pop-up am TV (bis die Uhr weiterläuft)
+  moveNotice?: { at: number; title: string; moves: import('./tourney').Move[]; dismissed?: boolean }; // Umsetzen am TV
+  endCheck?: { bustId: string; resume: boolean }; // nur noch ein Spieler: Host prüft, ob das Turnier vorbei ist
 }
 
 export interface AppData {

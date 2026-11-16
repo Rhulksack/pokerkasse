@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game, GameEvent } from '../src/logic';
-import { TourneyConfig, breakTable, clockAt, clockOps, colorUpHint, defaultTourney, drawSeats, entryPrice, seatLate, tableAdvice, tourneySettlement, tourneyState, windowOpen } from '../src/tourney';
+import { TourneyConfig, breakTable, clockAt, clockOps, colorUpHint, defaultTourney, drawSeats, entryPrice, seatLate, tableAdvice, tourneySettlement, tourneyState, windowOpen , balancePlan, balanceTables, neighbors, podium } from '../src/tourney';
 import { moneyStatus } from '../src/TourneyView';
 
 const cfg = (o: Partial<TourneyConfig> = {}): TourneyConfig => ({
@@ -132,5 +132,33 @@ describe('Turnier', () => {
     expect(moneyStatus(4, pr)?.text).toContain('Bubble');
     expect(moneyStatus(3, pr)?.text).toContain('Platz 3');
     expect(moneyStatus(2, pr)?.text).toContain('Heads-up');
+  });
+});
+
+describe('v1.6 Ausgleichen, Nachbarn, Treppchen', () => {
+  const mk = (spec: Record<string, [number, number]>) => ({ seats: Object.fromEntries(Object.entries(spec).map(([k, [table, seat]]) => [k, { table, seat }])), buttons: { 1: 1, 2: 1 } });
+  it('gleicht aus, bis max. 1 Unterschied, nur vom großen an den kleinen Tisch', () => {
+    const spec: Record<string, [number, number]> = {};
+    for (let i = 1; i <= 8; i++) spec['a' + i] = [1, i];
+    for (let i = 1; i <= 4; i++) spec['b' + i] = [2, i];
+    const sg = mk(spec); const ids = Object.keys(spec);
+    expect(tableAdvice(sg, ids, 9, 3)?.kind).toBe('balance');
+    expect(tableAdvice(sg, ids, 9, 5)).toBeNull();
+    expect(balancePlan(sg, ids)).toHaveLength(2);
+    const r = balanceTables(sg, ids, 9);
+    expect(r.moves).toHaveLength(2);
+    for (const m of r.moves) { expect(m.from).toBe(1); expect(m.table).toBe(2); expect(m.id.startsWith('a')).toBe(true); }
+    const t2 = ids.filter((x) => r.seating.seats[x].table === 2).map((x) => r.seating.seats[x].seat);
+    expect(new Set(t2).size).toBe(6);
+  });
+  it('Nachbarn im Kreis', () => {
+    const sg = mk({ x: [1, 2], y: [1, 5], z: [1, 8] });
+    expect(neighbors(sg, ['x', 'y', 'z'], 'y')).toEqual(['x', 'z']);
+    expect(neighbors(sg, ['x', 'y', 'z'], 'x')).toEqual(['z', 'y']);
+    expect(neighbors(sg, ['x', 'y'], 'x')).toEqual(['y']);
+  });
+  it('Treppchen nur bezahlte Plätze', () => {
+    const st: any = { prizes: [70, 30], players: [{ name: 'A', out: false, place: null }, { name: 'B', out: true, place: 2 }, { name: 'C', out: true, place: 3 }] };
+    expect(podium(st).map((x) => x.place + x.name)).toEqual(['1A', '2B']);
   });
 });

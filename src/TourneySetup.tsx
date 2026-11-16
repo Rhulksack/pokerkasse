@@ -16,6 +16,7 @@ export function tourneyErrors(t: TourneyConfig): string[] {
   if (Math.abs(sum - 100) > 0.001) e.push(`Auszahlung ergibt ${sum} % statt 100 %.`);
   if (t.rebuy.enabled && !(t.rebuyChips > 0)) e.push('Rebuy-Chips fehlen.');
   if (!(t.maxPerTable >= 2)) e.push('Max. Spieler pro Tisch muss mindestens 2 sein.');
+  if (!((t.balanceDiff ?? 2) >= 2)) e.push('Ausgleichen ab Unterschied von mindestens 2 Spielern (1 lässt sich nicht vermeiden).');
   return e;
 }
 
@@ -44,6 +45,7 @@ export default function TourneySetup({ t, set, players }: { t: TourneyConfig; se
             <input className="input" defaultValue={t.denominations.join(', ')} onChange={(e) => set((c) => { c.denominations = e.target.value.split(/[,;\s]+/).map(Number).filter((x) => x > 0).sort((a, b) => a - b); })} />
           </label>
           <label className="field">Max. Spieler pro Tisch<NumInput value={t.maxPerTable} onChange={(v) => set((c) => { c.maxPerTable = Math.min(12, v ?? 0); })} /></label>
+          <label className="field">Tische ausgleichen ab Unterschied von<NumInput value={t.balanceDiff ?? 2} onChange={(v) => set((c) => { c.balanceDiff = v ?? 0; })} suffix="Spielern" /></label>
         </div>
         <label className="check">
           <input type="checkbox" checked={t.bounty != null} onChange={(e) => set((c) => { c.bounty = e.target.checked ? 5 : null; })} />

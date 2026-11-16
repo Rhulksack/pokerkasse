@@ -6,6 +6,7 @@ import { Avatar, Icon, Modal, Money, fmtDate, fmtTime, useTick, useWakeLock } fr
 import {
   TPlayer, TourneyConfig, anteFor, clockAt, clockOps, colorUpHint, entryPrice, fmtChips, fmtClock, levelNo, nextBreakIdx,
   nextLevelIdx, seatLate, tableAdvice, breakTable, maxPer, tablesInUse, tourneyState, drawSeats, windowOpen, windowText,
+  balDiff, balancePlan, balanceTables, neighbors, podium, Move,
 } from './tourney';
 import { LogModal } from './GameView';
 import TourneySettlement from './TourneySettlement';
@@ -16,7 +17,9 @@ type DistEvent = GameEvent extends infer T ? (T extends GameEvent ? Omit<T, 'id'
 // TV-Anzeige (zweiter Bildschirm / AirPlay)
 // ======================================================================
 
-export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { game: Game; onHost?: () => void; onToggle?: () => void; onJump?: (d: 1 | -1) => void; onDismissFinal?: () => void }) {
+export interface TvHostActions { onHost?: () => void; onToggle?: () => void; onJump?: (d: 1 | -1) => void; onCloseMoves?: () => void; onEndUndo?: () => void; onEndConfirm?: () => void }
+
+export function TvScreen({ game, onHost, onToggle, onJump, onCloseMoves, onEndUndo, onEndConfirm }: { game: Game } & TvHostActions) {
   const now = useTick(250);
   const t = game.tourney!;
   const st = useMemo(() => tourneyState(game), [game]);
@@ -36,19 +39,30 @@ export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { g
   const lateOpen = windowOpen(t.lateReg, t.structure, cv.idx, started);
   const hint = isBreak ? colorUpHint(t, cv.idx) : null;
   const finished = game.status === 'finished';
-  const winner = st.players.find((p) => !p.out);
+  const showPodium = finished || (started && st.alive === 1 && st.players.length >= 2);
   const ft = game.finalTable;
-  const showFinal = !!ft && !ft.dismissed && now - ft.at < 30000 && started && !finished;
-  const lastBust = useMemo(() => {
+  const showFinal = !!ft && !ft.dismissed && started && !showPodium;
+  const mv = game.moveNotice;
+  const showMoves = !!mv && !mv.dismissed && started && !showPodium && !showFinal;
+  // Letzte Meldung: Ausscheiden (6 s) oder Rebuy (4 s)
+  const news = useMemo(() => {
     const voided = new Set(game.events.filter((e) => e.type === 'void').map((e: any) => e.targetId));
     for (let i = game.events.length - 1; i >= 0; i--) {
       const e = game.events[i];
-      if (e.type === 'bust' && e.final && !voided.has(e.id)) return e;
+      if (voided.has(e.id)) continue;
+      if (e.type === 'bust' && e.final) return { kind: 'bust' as const, ev: e };
+      if (e.type === 'buyin' && e.rebuy && !e.relabel) {
+        const n = game.events.slice(0, i + 1).filter((x) => x.type === 'buyin' && x.rebuy && !x.relabel && x.playerId === e.playerId && !voided.has(x.id)).length;
+        return { kind: 'rebuy' as const, ev: e, n };
+      }
     }
     return null;
   }, [game.events]);
-  const bustP = lastBust && now - lastBust.at < 6000 && !finished ? st.players.find((p) => p.bustId === lastBust.id) : null;
-  const status = started && !finished ? moneyStatus(st.alive, st.prizes) : null;
+  const busy = showPodium || showFinal || showMoves;
+  const bustP = news?.kind === 'bust' && now - news.ev.at < 6000 && !busy ? st.players.find((p) => p.bustId === news.ev.id) : null;
+  const rebuyP = news?.kind === 'rebuy' && now - news.ev.at < 4000 && !busy ? st.players.find((p) => p.id === (news.ev as any).playerId) : null;
+  const status = started && !busy ? moneyStatus(st.alive, st.prizes) : null;
+  const pod = showPodium ? podium(st) : [];
 
   useEffect(() => {
     if (!onToggle) return;
@@ -70,17 +84,30 @@ export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { g
       <div className="tv-head">
         <span className="tv-name">{game.name}</span>
         <span className="tv-tags">
-          {started && !finished && <span className={'tv-tag' + (rebuyOpen ? ' on' : '')}>{t.rebuy.enabled ? (rebuyOpen ? 'Rebuy offen' : 'Rebuy geschlossen') : 'Freezeout'}</span>}
-          {started && !finished && t.lateReg.enabled && lateOpen && <span className="tv-tag on">Late Reg offen</span>}
+          {started && !showPodium && <span className={'tv-tag' + (rebuyOpen ? ' on' : '')}>{t.rebuy.enabled ? (rebuyOpen ? 'Rebuy offen' : 'Rebuy geschlossen') : 'Freezeout'}</span>}
+          {started && !showPodium && t.lateReg.enabled && lateOpen && <span className="tv-tag on">Late Reg offen</span>}
           {t.bounty ? <span className="tv-tag">Bounty {fmt(t.bounty)}</span> : null}
         </span>
       </div>
 
-      {finished ? (
+      {showPodium ? (
         <div className="tv-main tv-center">
-          <div className="tv-label">Gewinner</div>
-          <div className="tv-winner">{winner?.name ?? '–'}</div>
-          <div className="tv-sub">{fmt(st.prizes[0] ?? 0)} Preisgeld</div>
+          <div className="tv-label">Turnier beendet</div>
+          <div className={'podium n' + pod.length}>
+            {[2, 1, 3].map((pl) => { const x = pod.find((y) => y.place === pl); return x ? (
+              <div key={pl} className={'pod pod' + pl}>
+                <div className="pod-name">{x.name}</div>
+                <div className="pod-prize num">{fmt(x.prize)}</div>
+                <div className="pod-step num">{pl}</div>
+              </div>
+            ) : null; })}
+          </div>
+          {!finished && (onEndUndo || onEndConfirm) && (
+            <div className="tv-ctrl">
+              {onEndUndo && <button className="btn" onClick={onEndUndo}>{Icon.undo} Fehler – Ausscheiden rückgängig</button>}
+              {onEndConfirm && <button className="btn primary" onClick={onEndConfirm}>{Icon.check} Turnier beenden & abrechnen</button>}
+            </div>
+          )}
         </div>
       ) : !started ? (
         <div className="tv-main tv-center">
@@ -111,8 +138,14 @@ export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { g
           </div>
         </div>
       )}
-      {status && !showFinal && <div className={'tv-status ' + status.tone}>{status.text}</div>}
-      {bustP && !showFinal && (
+      {status && <div className={'tv-status ' + status.tone}>{status.text}</div>}
+      {rebuyP && (
+        <div className="tv-bust rebuy" key={(news!.ev as any).id}>
+          <span className="tv-bust-place">Rebuy</span>
+          <span><b>{rebuyP.name}</b> kauft sich wieder ein{news?.kind === 'rebuy' && news.n > 1 ? ` (${news.n}.)` : ''}</span>
+        </div>
+      )}
+      {bustP && (
         <div className="tv-bust" key={bustP.bustId!}>
           <span className="tv-bust-place num">{bustP.place}.</span>
           <span><b>{bustP.name}</b> scheidet aus{bustP.byId && t.bounty ? <> – raus durch {st.players.find((x) => x.id === bustP.byId)?.name}</> : null}</span>
@@ -120,10 +153,18 @@ export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { g
         </div>
       )}
       {showFinal && (
-        <div className="tv-final" onClick={onDismissFinal}>
+        <div className="tv-final">
           <div className="tv-final-title">Finaltisch</div>
-          <div className="tv-sub">{st.alive} Spieler · neue Sitzordnung</div>
+          <div className="tv-sub">{st.alive} Spieler · neue Sitzordnung · Uhr pausiert</div>
           <Seats game={game} />
+          {onToggle && <div className="tv-ctrl"><button className="btn primary" onClick={onToggle}>{Icon.play} Uhr weiterlaufen lassen</button></div>}
+        </div>
+      )}
+      {showMoves && (
+        <div className="tv-final tv-moves">
+          <div className="tv-final-title sm">{mv!.title}</div>
+          <MoveList game={game} moves={mv!.moves} />
+          {onCloseMoves && <div className="tv-ctrl"><button className="btn primary" onClick={onCloseMoves}>{Icon.check} Erledigt – schließen</button></div>}
         </div>
       )}
       {onHost && <button className="tv-host-btn" onClick={onHost}>{Icon.user} Host</button>}
@@ -131,9 +172,34 @@ export function TvScreen({ game, onHost, onToggle, onJump, onDismissFinal }: { g
   );
 }
 
+export function MoveList({ game, moves }: { game: Game; moves: Move[] }) {
+  const st = useMemo(() => tourneyState(game), [game]);
+  const sg = game.seating;
+  const aliveIds = st.players.filter((p) => !p.out).map((p) => p.id);
+  const name = (id: string) => st.players.find((p) => p.id === id)?.name ?? '?';
+  return (
+    <div className="move-list">
+      {moves.filter((m) => aliveIds.includes(m.id)).map((m) => {
+        const nb = sg ? neighbors(sg, aliveIds, m.id) : [];
+        return (
+          <div key={m.id} className="move">
+            <b>{name(m.id)}</b>
+            <span className="move-path">Tisch {m.from} → <em>Tisch {m.table}, Sitz {m.seat}</em></span>
+            {nb.length > 0 && <span className="move-nb">{nb.length === 2 ? <>zwischen <b>{name(nb[0])}</b> und <b>{name(nb[1])}</b></> : <>neben <b>{name(nb[0])}</b></>}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const rTag = (n: number) => n > 0 ? <small className="rtag">R{n}</small> : null;
+
 function Seats({ game }: { game: Game }) {
   const sg = game.seating;
-  const out = useMemo(() => new Set(tourneyState(game).players.filter((p) => p.out).map((p) => p.id)), [game]);
+  const ts = useMemo(() => tourneyState(game), [game]);
+  const out = useMemo(() => new Set(ts.players.filter((p) => p.out).map((p) => p.id)), [ts]);
+  const reb = (id: string) => ts.players.find((p) => p.id === id)?.rebuys ?? 0;
   if (!sg) return null;
   const alive = Object.keys(sg.seats).filter((id) => !out.has(id) && game.players.some((p) => p.id === id));
   const tables = [...new Set(alive.map((id) => sg.seats[id].table))].sort((a, b) => a - b);
@@ -145,7 +211,7 @@ function Seats({ game }: { game: Game }) {
         return (
           <div key={tb} className="tv-seat-table">
             {tables.length > 1 && <h4>Tisch {tb}</h4>}
-            {list.map(([id, v]) => <div key={id}><span className="num">{v.seat}</span>{name(id)}{sg.buttons[tb] === v.seat && <i className="dealer">D</i>}</div>)}
+            {list.map(([id, v]) => <div key={id}><span className="num">{v.seat}</span>{name(id)}{rTag(reb(id))}{sg.buttons[tb] === v.seat && <i className="dealer">D</i>}</div>)}
           </div>
         );
       })}
@@ -182,7 +248,8 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   const ds = useMemo(() => deriveState(game), [game]);
   const [tvExt, setTvExt] = useState<TvState | null>(null);
   const [tvMode, setTvMode] = useState(true);
-  const [modal, setModal] = useState<null | { k: 'rebuy' | 'bust' | 'player'; p: TPlayer } | { k: 'add' | 'log' | 'end' | 'final' }>(null);
+  const [modal, setModal] = useState<null | { k: 'rebuy' | 'bust' | 'player'; p: TPlayer } | { k: 'add' | 'log' | 'end' | 'final' | 'endcheck' | 'balance' }>(null);
+  const [podiumView, setPodiumView] = useState(false);
   const [toast, setToast] = useState<{ text: string; evIds: string[] } | null>(null);
   const started = game.status !== 'created';
   const running = game.status === 'running';
@@ -212,15 +279,27 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
 
   // Finaltisch erreicht: Host einmal fragen
   const aliveNow = st.players.filter((p) => !p.out).map((p) => p.id);
-  const advice = tableAdvice(game.seating, aliveNow, maxPer(t));
+  const advice = tableAdvice(game.seating, aliveNow, maxPer(t), balDiff(t));
   const askedFinal = useRef(false);
   useEffect(() => {
     if (advice?.kind === 'final' && game.status === 'running' && !askedFinal.current) { askedFinal.current = true; setModal({ k: 'final' }); setTvMode(false); }
     if (advice?.kind !== 'final') askedFinal.current = false;
   }, [advice?.kind, game.status]);
 
+  // Nur noch ein Spieler: Treppchen zeigen, Host prüft
+  const endPending = game.status === 'running' && st.alive === 1 && st.players.length >= 2;
+  const askedEnd = useRef(false);
+  useEffect(() => {
+    if (endPending && !askedEnd.current) {
+      askedEnd.current = true;
+      if (tvExt?.open) { setTvMode(false); setModal({ k: 'endcheck' }); } else { setModal(null); setTvMode(true); }
+    }
+    if (!endPending) askedEnd.current = false;
+  }, [endPending]);
+
   if (game.status === 'finished') {
-    return <TourneySettlement game={game} update={update} onBack={onBack}
+    if (podiumView) return <TvScreen game={game} onHost={() => setPodiumView(false)} />;
+    return <TourneySettlement game={game} update={update} onBack={onBack} onPodium={() => setPodiumView(true)}
       onReopen={() => mut((g) => { g.status = 'running'; g.endedAt = null; })} />;
   }
 
@@ -228,7 +307,10 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   const clockDo = (action: string, fn: (g: Game, n: number) => void) => mut((g) => { const n = Date.now(); fn(g, n); g.events.push({ id: uid(), at: n, type: 'clock', action }); });
   const toggle = () => {
     if (!started) return start();
-    clockDo(cv.running ? 'pausiert' : 'fortgesetzt', (g, n) => { g.clock = cv.running ? clockOps.pause(t, g.clock, n) : clockOps.resume(t, g.clock, n); });
+    clockDo(cv.running ? 'pausiert' : 'fortgesetzt', (g, n) => {
+      g.clock = cv.running ? clockOps.pause(t, g.clock, n) : clockOps.resume(t, g.clock, n);
+      if (!cv.running && g.finalTable) g.finalTable.dismissed = true; // Finaltisch-Screen verschwindet, sobald die Uhr weiterläuft
+    });
   };
   const jump = (dir: 1 | -1) => {
     if (!started) return;
@@ -243,8 +325,19 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
     g.events.push({ id: uid(), at: n, type: 'game_started' });
   });
 
-  const dismissFinal = () => mut((g) => { if (g.finalTable) g.finalTable.dismissed = true; });
-  if (tvMode) return <TvScreen game={game} onHost={() => setTvMode(false)} onToggle={toggle} onJump={jump} onDismissFinal={dismissFinal} />;
+  const closeMoves = () => mut((g) => { if (g.moveNotice) g.moveNotice.dismissed = true; });
+  const finish = () => mut((g) => { const n = Date.now(); g.status = 'finished'; g.endedAt = n; g.clock = clockOps.pause(t, g.clock, n); delete g.endCheck; g.events.push({ id: uid(), at: n, type: 'game_finished' }); });
+  const endUndo = () => mut((g) => {
+    const n = Date.now();
+    const ec = g.endCheck;
+    const voided = new Set(g.events.filter((x) => x.type === 'void').map((x: any) => x.targetId));
+    const last = ec?.bustId ?? [...g.events].reverse().find((x) => x.type === 'bust' && x.final && !voided.has(x.id))?.id;
+    if (last) g.events.push({ id: uid(), at: n, type: 'void', targetId: last });
+    if (ec?.resume) { g.clock = clockOps.resume(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'fortgesetzt' }); }
+    delete g.endCheck;
+  });
+  if (tvMode) return <TvScreen game={game} onHost={() => setTvMode(false)} onToggle={toggle} onJump={jump} onCloseMoves={closeMoves}
+    onEndUndo={endPending ? endUndo : undefined} onEndConfirm={endPending ? finish : undefined} />;
 
   const item = t.structure[cv.idx];
   const isBreak = item?.kind === 'break';
@@ -258,15 +351,27 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   const max = maxPer(t);
   const multi = tablesInUse(game.seating, aliveIds).length > 1;
   const nameOf = (id: string) => st.players.find((x) => x.id === id)?.name ?? '?';
-  const finalShown = !!game.finalTable && !game.finalTable.dismissed && now - game.finalTable.at < 30000;
-  const doBreak = (table: number) => {
-    if (!game.seating) return;
-    const r = breakTable(game.seating, table, aliveIds, max);
-    mut((g) => { g.seating = r.seating; g.events.push({ id: uid(), at: Date.now(), type: 'clock', action: `Tisch ${table} aufgelöst: ` + r.moves.map((m) => `${nameOf(m.id)} → T${m.table} S${m.seat}`).join(', ') }); });
-    setToast({ text: `Tisch ${table} aufgelöst: ` + r.moves.map((m) => `${nameOf(m.id)} → Tisch ${m.table}, Sitz ${m.seat}`).join(' · '), evIds: [] });
+  const finalShown = !!game.finalTable && !game.finalTable.dismissed;
+  const movesShown = !!game.moveNotice && !game.moveNotice.dismissed;
+  const applyMoves = (title: string, r: { seating: NonNullable<Game['seating']>; moves: Move[] }) => {
+    mut((g) => {
+      const n = Date.now();
+      g.seating = r.seating;
+      g.moveNotice = { at: n, title, moves: r.moves };
+      g.events.push({ id: uid(), at: n, type: 'clock', action: `${title}: ` + r.moves.map((m) => `${nameOf(m.id)} T${m.from} → T${m.table} S${m.seat}`).join(', ') });
+    });
   };
+  const doBreak = (table: number) => { if (game.seating) applyMoves(`Tisch ${table} wird aufgelöst`, breakTable(game.seating, table, aliveIds, max)); };
+  const doBalance = () => { if (game.seating) applyMoves('Tische ausgleichen', balanceTables(game.seating, aliveIds, max)); setModal(null); };
+  const plan = advice?.kind === 'balance' ? balancePlan(game.seating, aliveIds) : [];
   const doFinal = () => {
-    mut((g) => { const n = Date.now(); g.seating = drawSeats(aliveIds, max); g.finalTable = { at: n }; g.events.push({ id: uid(), at: n, type: 'clock', action: 'Finaltisch gelost' }); });
+    mut((g) => {
+      const n = Date.now();
+      g.seating = drawSeats(aliveIds, max); g.finalTable = { at: n };
+      if (g.moveNotice) g.moveNotice.dismissed = true;
+      g.events.push({ id: uid(), at: n, type: 'clock', action: 'Finaltisch gelost' });
+      if (g.clock?.runningSince != null) { g.clock = clockOps.pause(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'pausiert (Finaltisch)' }); }
+    });
     setModal(null);
   };
   const seat = (id: string) => game.seating?.seats[id];
@@ -335,8 +440,15 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
           <div className="tplayers">
             {advice?.kind === 'final' && <div className="warn row wrap-row">Finaltisch: nur noch {aliveIds.length} Spieler, alle passen an einen Tisch.<div className="spacer" /><button className="btn sm" onClick={() => setModal({ k: 'final' })}>{Icon.shuffle} Finaltisch losen</button></div>}
             {advice?.kind === 'break' && <div className="warn row wrap-row">Tisch {advice.table} auflösen: {advice.count} Spieler passen an die übrigen Tische.<div className="spacer" /><button className="btn sm" onClick={() => doBreak(advice.table)}>{Icon.shuffle} Auflösen & verteilen</button></div>}
-            {advice?.kind === 'balance' && <div className="warn">Tische ausgleichen: Tisch {advice.from} hat {advice.fromCount}, Tisch {advice.to} nur {advice.toCount} Spieler. Einen Spieler umsetzen.</div>}
-            {finalShown && <div className="note row">Finaltisch-Pop-up läuft am TV.<button className="btn sm ghost" onClick={dismissFinal}>Am TV schließen</button></div>}
+            {advice?.kind === 'balance' && <div className="warn row wrap-row">Tische ausgleichen: Tisch {advice.from} hat {advice.fromCount}, Tisch {advice.to} nur {advice.toCount} Spieler.<div className="spacer" /><button className="btn sm" onClick={() => setModal({ k: 'balance' })}>{Icon.shuffle} Ausgleichen</button></div>}
+            {finalShown && <div className="note">Finaltisch-Screen läuft am TV. Die Uhr ist pausiert – sobald du sie weiterlaufen lässt, verschwindet er.</div>}
+            {movesShown && !finalShown && (
+              <div className="card move-card">
+                <div className="row"><b>{game.moveNotice!.title} – läuft am TV</b><div className="spacer" /><button className="btn sm primary" onClick={closeMoves}>{Icon.check} Am TV schließen</button></div>
+                <MoveList game={game} moves={game.moveNotice!.moves} />
+              </div>
+            )}
+            {endPending && <div className="warn row wrap-row">Nur noch {alive[0]?.name} übrig – am TV steht das Treppchen.<div className="spacer" /><button className="btn sm" onClick={endUndo}>{Icon.undo} Fehler – rückgängig</button><button className="btn sm primary" onClick={finish}>{Icon.check} Beenden & abrechnen</button></div>}
             <h3>Im Turnier · {alive.length}</h3>
             {alive.length === 0 && <div className="empty">Noch keine Spieler. Füge oben über „Spieler“ jemanden hinzu.</div>}
             <div className="tlist">
@@ -388,7 +500,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
               <div className="row"><h3>Sitzplätze</h3><div className="spacer" />
                 <button className="btn sm" onClick={() => mut((g) => { g.seating = drawSeats(aliveIds, max); })}>{Icon.shuffle} Neu losen</button>
               </div>
-              <SeatList game={game} aliveIds={aliveIds} />
+              <SeatList game={game} aliveIds={aliveIds} rebuys={(id) => st.players.find((x) => x.id === id)?.rebuys ?? 0} />
             </div>
             <div className="card pay-list">
               <h3>Struktur</h3>
@@ -419,8 +531,18 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
       {modal?.k === 'bust' && <BustModal p={modal.p} t={t} place={st.alive} rebuyOpen={rebuyOpen && !maxed(modal.p)} others={alive.filter((x) => x.id !== modal.p.id)} onClose={() => setModal(null)}
         onRebuy={() => setModal({ k: 'rebuy', p: modal.p })}
         onConfirm={(byId) => {
-          const ev = addEvent({ type: 'bust', playerId: modal.p.id, byId, final: true });
-          setToast({ text: `${modal.p.name} ist raus (Platz ${st.alive})`, evIds: [ev.id] });
+          const last = st.alive === 2;
+          const n = Date.now();
+          const ev = { id: uid(), at: n, type: 'bust', playerId: modal.p.id, byId, final: true } as GameEvent;
+          mut((g) => {
+            g.events.push(ev);
+            if (last) {
+              const wasRunning = g.clock?.runningSince != null;
+              if (wasRunning) { g.clock = clockOps.pause(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'pausiert (Turnierende)' }); }
+              g.endCheck = { bustId: ev.id, resume: wasRunning };
+            }
+          });
+          if (!last) setToast({ text: `${modal.p.name} ist raus (Platz ${st.alive})`, evIds: [ev.id] });
           setModal(null);
         }} />}
       {modal?.k === 'player' && <PlayerModal game={game} p={st.players.find((x) => x.id === modal.p.id)!} onClose={() => setModal(null)} mut={mut} />}
@@ -431,16 +553,31 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
           <button className="btn" onClick={() => setModal(null)}>Später</button>
           <button className="btn primary" onClick={doFinal}>{Icon.shuffle} Finaltisch losen</button>
         </>}>
-          <p className="muted" style={{ margin: 0 }}>Nur noch {aliveIds.length} Spieler – alle passen an einen Tisch (max. {max}). Sitzplätze und Dealer-Button werden neu ausgelost, am TV erscheint „Finaltisch“ mit der neuen Sitzordnung.</p>
+          <p className="muted" style={{ margin: 0 }}>Nur noch {aliveIds.length} Spieler – alle passen an einen Tisch (max. {max}). Sitzplätze und Dealer-Button werden neu ausgelost, die Uhr pausiert und am TV erscheint „Finaltisch“ mit der neuen Sitzordnung – bis du die Uhr weiterlaufen lässt.</p>
+        </Modal>
+      )}
+      {modal?.k === 'balance' && (
+        <Modal title="Tische ausgleichen" onClose={() => setModal(null)} footer={<>
+          <button className="btn" onClick={() => setModal(null)}>Abbrechen</button>
+          <button className="btn primary" onClick={doBalance}>{Icon.shuffle} Jetzt ausgleichen</button>
+        </>}>
+          <p className="muted" style={{ margin: 0 }}>
+            {[...new Set(plan.map((x) => `${x.from}→${x.to}`))].map((k) => { const [f, to] = k.split('→'); const n = plan.filter((x) => `${x.from}→${x.to}` === k).length; return `${n} Spieler von Tisch ${f} an Tisch ${to}`; }).join(', ')} – zufällig ausgewählt, auf zufällige freie Plätze. Am TV erscheint, wer wohin muss, bis du die Anzeige schließt.
+          </p>
+        </Modal>
+      )}
+      {modal?.k === 'endcheck' && (
+        <Modal title="Turnier vorbei?" onClose={() => setModal(null)} footer={<>
+          <button className="btn" onClick={() => { endUndo(); setModal(null); }}>{Icon.undo} Fehler – Ausscheiden rückgängig</button>
+          <button className="btn primary" onClick={() => { finish(); setModal(null); }}>{Icon.check} Beenden & abrechnen</button>
+        </>}>
+          <p className="muted" style={{ margin: 0 }}>Nur noch {alive[0]?.name} ist übrig. Am TV steht das Treppchen, die Uhr ist pausiert. War das letzte Ausscheiden ein Fehler, wird es rückgängig gemacht und die Uhr läuft weiter.</p>
         </Modal>
       )}
       {modal?.k === 'end' && (
         <Modal title="Turnier beenden?" onClose={() => setModal(null)} footer={<>
           <button className="btn" onClick={() => setModal(null)}>Abbrechen</button>
-          <button className="btn primary" onClick={() => {
-            mut((g) => { const n = Date.now(); g.status = 'finished'; g.endedAt = n; g.clock = clockOps.pause(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'game_finished' }); });
-            setModal(null);
-          }}>{Icon.check} Beenden & abrechnen</button>
+          <button className="btn primary" onClick={() => { finish(); setModal(null); }}>{Icon.check} Beenden & abrechnen</button>
         </>}>
           <p className="muted" style={{ margin: 0 }}>{alive[0] ? `${alive[0].name} gewinnt das Turnier. ` : ''}Die Spielzeit stoppt und die Abrechnung mit Preisgeldern{t.bounty ? ' und Bounties' : ''} wird erstellt.</p>
         </Modal>
@@ -455,7 +592,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   );
 }
 
-function SeatList({ game, aliveIds }: { game: Game; aliveIds: string[] }) {
+function SeatList({ game, aliveIds, rebuys }: { game: Game; aliveIds: string[]; rebuys: (id: string) => number }) {
   const sg = game.seating;
   if (!sg) return <div className="muted">Noch nicht gelost.</div>;
   const tables = [...new Set(aliveIds.map((id) => sg.seats[id]?.table).filter(Boolean) as number[])].sort((a, b) => a - b);
@@ -466,7 +603,7 @@ function SeatList({ game, aliveIds }: { game: Game; aliveIds: string[] }) {
         <div key={tb} className="seat-table">
           {tables.length > 1 && <b>Tisch {tb}</b>}
           {aliveIds.filter((id) => sg.seats[id]?.table === tb).sort((a, b) => sg.seats[a].seat - sg.seats[b].seat).map((id) => (
-            <div key={id} className="seat-row"><span className="num muted">{sg.seats[id].seat}</span><span style={{ flex: 1 }}>{name(id)}</span>{sg.buttons[tb] === sg.seats[id].seat && <i className="dealer sm">D</i>}</div>
+            <div key={id} className="seat-row"><span className="num muted">{sg.seats[id].seat}</span><span style={{ flex: 1 }}>{name(id)}{rTag(rebuys(id))}</span>{sg.buttons[tb] === sg.seats[id].seat && <i className="dealer sm">D</i>}</div>
           ))}
         </div>
       ))}
@@ -552,7 +689,7 @@ function PlayerModal({ game, p, onClose, mut }: { game: Game; p: TPlayer; onClos
         {lastPaid && game.status !== 'finished' && <button className="btn" onClick={() => mut((g) => {
           const n = Date.now();
           g.events.push({ id: uid(), at: n, type: 'void', targetId: lastPaid.id });
-          g.events.push({ id: uid(), at: n, type: 'buyin', playerId: p.id, amount: lastPaid.amount, paid: false, rebuy: ps.buyins[0].id !== lastPaid.id });
+          g.events.push({ id: uid(), at: n, type: 'buyin', playerId: p.id, amount: lastPaid.amount, paid: false, rebuy: ps.buyins[0].id !== lastPaid.id, relabel: true });
         })}>{Icon.pen} Letzten {fmt(lastPaid.amount)} doch anschreiben</button>}
         {p.out && p.bustId && !voided.has(p.bustId) && game.status !== 'finished' && <button className="btn" onClick={() => push({ type: 'void', targetId: p.bustId! })}>{Icon.undo} Ausscheiden rückgängig</button>}
       </div>

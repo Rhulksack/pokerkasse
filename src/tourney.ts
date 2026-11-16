@@ -19,6 +19,7 @@ export interface TourneyConfig {
   lateReg: Window;
   payouts: number[]; // Prozent je Platz
   maxPerTable: number; // max. Spieler pro Tisch, daraus ergibt sich die Tischanzahl
+  balanceDiff: number; // ab diesem Spielerunterschied zwischen Tischen wird ausgeglichen
   tables?: number; // veraltet (v1.4.0)
 }
 
@@ -37,9 +38,11 @@ export const defaultTourney = (): TourneyConfig => ({
   lateReg: { enabled: true, untilLevel: 6, inBreakAfter: true },
   payouts: [50, 30, 20],
   maxPerTable: 9,
+  balanceDiff: 2,
 });
 
 export const maxPer = (t: TourneyConfig) => Math.max(2, t.maxPerTable || 9);
+export const balDiff = (t: TourneyConfig) => Math.max(2, t.balanceDiff || 2);
 export const tablesNeeded = (n: number, max: number) => Math.max(1, Math.ceil(n / Math.max(2, max)));
 
 export const entryPrice = (t: TourneyConfig) => t.buyIn + (t.bounty ?? 0);
@@ -258,7 +261,7 @@ export function seatLate(seating: Seating | undefined, id: string, aliveIds: str
 }
 
 /** Hinweise für den Host: Finaltisch, Tisch auflösen, Tische ausgleichen. */
-export function tableAdvice(seating: Seating | undefined, aliveIds: string[], max: number) {
+export function tableAdvice(seating: Seating | undefined, aliveIds: string[], max: number, diff = 2) {
   const used = tablesInUse(seating, aliveIds);
   if (used.length < 2) return null;
   if (aliveIds.length <= max) return { kind: 'final' as const };
@@ -268,15 +271,17 @@ export function tableAdvice(seating: Seating | undefined, aliveIds: string[], ma
   }
   const sorted = [...used].sort((a, b) => a.count - b.count);
   const lo = sorted[0], hi = sorted[sorted.length - 1];
-  if (hi.count - lo.count >= 2) return { kind: 'balance' as const, from: hi.table, to: lo.table, fromCount: hi.count, toCount: lo.count };
+  if (hi.count - lo.count >= Math.max(2, diff)) return { kind: 'balance' as const, from: hi.table, to: lo.table, fromCount: hi.count, toCount: lo.count };
   return null;
 }
 
 /** Tisch auflösen: dessen Spieler zufällig auf freie Plätze der übrigen Tische verteilen (immer an den leersten Tisch). */
-export function breakTable(seating: Seating, table: number, aliveIds: string[], max: number): { seating: Seating; moves: { id: string; table: number; seat: number }[] } {
+export interface Move { id: string; from: number; table: number; seat: number }
+
+export function breakTable(seating: Seating, table: number, aliveIds: string[], max: number): { seating: Seating; moves: Move[] } {
   const sg: Seating = structuredClone(seating);
   const moving = shuffle(aliveIds.filter((x) => sg.seats[x]?.table === table));
-  const moves: { id: string; table: number; seat: number }[] = [];
+  const moves: Move[] = [];
   for (const id of moving) {
     const placed = aliveIds.filter((x) => !moving.includes(x) || moves.some((m) => m.id === x));
     const target = tablesInUse(sg, placed).filter((x) => x.table !== table && x.count < max).sort((a, b) => a.count - b.count)[0];
@@ -284,10 +289,65 @@ export function breakTable(seating: Seating, table: number, aliveIds: string[], 
     const free = freeSeats(sg, placed, target.table, max);
     const seat = free[Math.floor(Math.random() * free.length)];
     sg.seats[id] = { table: target.table, seat };
-    moves.push({ id, table: target.table, seat });
+    moves.push({ id, from: table, table: target.table, seat });
   }
   delete sg.buttons[table];
   return { seating: sg, moves };
+}
+
+/** Wie viele Spieler beim Ausgleichen umgesetzt werden (bis kein Tisch mehr als 1 Spieler mehr hat). */
+export function balancePlan(seating: Seating | undefined, aliveIds: string[]) {
+  const counts = tablesInUse(seating, aliveIds);
+  const plan: { from: number; to: number }[] = [];
+  while (counts.length > 1) {
+    counts.sort((a, b) => a.count - b.count || a.table - b.table);
+    const lo = counts[0], hi = counts[counts.length - 1];
+    if (hi.count - lo.count < 2) break;
+    hi.count--; lo.count++; plan.push({ from: hi.table, to: lo.table });
+  }
+  return plan;
+}
+
+/** Tische ausgleichen: zufällige Spieler vom größten Tisch auf zufällige freie Plätze am kleinsten Tisch. */
+export function balanceTables(seating: Seating, aliveIds: string[], max: number): { seating: Seating; moves: Move[] } {
+  const sg: Seating = structuredClone(seating);
+  const moves: Move[] = [];
+  const moved = new Set<string>();
+  for (const step of balancePlan(seating, aliveIds)) {
+    const cand = aliveIds.filter((x) => sg.seats[x]?.table === step.from);
+    const pool = cand.filter((x) => !moved.has(x));
+    const pick = (pool.length ? pool : cand)[Math.floor(Math.random() * (pool.length ? pool : cand).length)];
+    const free = freeSeats(sg, aliveIds.filter((x) => x !== pick), step.to, max);
+    const seat = free[Math.floor(Math.random() * free.length)] ?? 1;
+    sg.seats[pick] = { table: step.to, seat };
+    moved.add(pick);
+    const prev = moves.find((m) => m.id === pick);
+    if (prev) { prev.table = step.to; prev.seat = seat; } else moves.push({ id: pick, from: step.from, table: step.to, seat });
+  }
+  return { seating: sg, moves };
+}
+
+/** Sitznachbarn am Tisch (nächster belegter Sitz davor und danach, im Kreis). */
+export function neighbors(seating: Seating, aliveIds: string[], id: string): string[] {
+  const me = seating.seats[id];
+  if (!me) return [];
+  const others = aliveIds.filter((x) => x !== id && seating.seats[x]?.table === me.table).sort((a, b) => seating.seats[a].seat - seating.seats[b].seat);
+  if (!others.length) return [];
+  const before = [...others].reverse().find((x) => seating.seats[x].seat < me.seat) ?? others[others.length - 1];
+  const after = others.find((x) => seating.seats[x].seat > me.seat) ?? others[0];
+  return before === after ? [before] : [before, after];
+}
+
+/** Treppchen: bezahlte Plätze (max. 3) mit Name und Preisgeld. */
+export function podium(st: TState) {
+  const paid = Math.min(3, st.prizes.length);
+  const alive = st.players.filter((p) => !p.out);
+  const res: { place: number; name: string; prize: number }[] = [];
+  for (let pl = 1; pl <= paid; pl++) {
+    const p = pl === 1 ? (alive.length === 1 ? alive[0] : null) : st.players.find((x) => x.place === pl);
+    if (p) res.push({ place: pl, name: p.name, prize: st.prizes[pl - 1] });
+  }
+  return res;
 }
 
 // ---------- Color-up ----------

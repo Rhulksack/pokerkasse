@@ -544,3 +544,34 @@ label.check input[type=checkbox] { width: 20px; height: 20px; accent-color: var(
   .tv-bust { flex-wrap: wrap; justify-content: center; white-space: normal; text-align: center; font-size: clamp(18px, 6vw, 56px); }
 }
 .tv-final .tv-seat-table { font-size: clamp(16px, 3.4vmin, 46px); }
+
+/* v1.6: Rebuy-Banner, Umsetzen, Treppchen */
+.tv-bust.rebuy { border-color: var(--amber); }
+.tv-bust.rebuy .tv-bust-place { color: var(--amber); }
+.rtag { margin-left: .45em; font-size: .62em; font-weight: 800; color: var(--amber); background: var(--amber-soft); padding: .08em .4em; border-radius: 6px; vertical-align: middle; }
+.tv-ctrl { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 2vh; }
+.tv-final-title.sm { font-size: min(9vw, 12vh); color: var(--amber); }
+.tv-moves { background: radial-gradient(ellipse at 50% 30%, rgba(245, 180, 60, .14), transparent 65%), var(--bg); cursor: default; }
+.move-list { display: grid; gap: 1.6vh; width: min(1100px, 94vw); }
+.tv-moves .move-list { font-size: clamp(18px, 4vmin, 56px); }
+.move { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: .2em .6em; padding: .5em .9em; border-radius: 18px; background: var(--surface, rgba(255,255,255,.04)); border: 1px solid var(--border, rgba(255,255,255,.08)); }
+.move > b { font-weight: 800; }
+.move-path { color: var(--muted); }
+.move-path em { font-style: normal; color: var(--amber); font-weight: 800; }
+.move-nb { color: var(--muted); }
+.move-nb b { color: var(--text); }
+.move-card { display: grid; gap: 10px; padding: 14px; margin-bottom: 12px; border-color: var(--amber); }
+.move-card .move-list { width: auto; font-size: 15px; }
+.move-card .move { justify-content: flex-start; padding: 8px 12px; }
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 2.5vw; margin-top: 3vh; width: min(1100px, 94vw); }
+.pod { flex: 1; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: .6vh; animation: bustIn2 .6s ease-out both; }
+.pod1 { animation-delay: .5s; } .pod2 { animation-delay: .25s; }
+.pod-name { font-size: clamp(18px, 5vmin, 72px); font-weight: 800; text-align: center; line-height: 1.1; word-break: break-word; }
+.pod1 .pod-name { color: var(--amber); font-size: clamp(22px, 6.5vmin, 92px); }
+.pod-prize { font-size: clamp(15px, 3.4vmin, 48px); color: var(--green); font-weight: 700; }
+.pod-step { width: 100%; display: flex; align-items: flex-start; justify-content: center; padding-top: 1.5vh; border-radius: 14px 14px 0 0; font-size: clamp(28px, 8vmin, 120px); font-weight: 800; color: rgba(255,255,255,.85); }
+.pod1 .pod-step { height: 30vh; background: linear-gradient(180deg, #d9a93a, #8a6514); }
+.pod2 .pod-step { height: 21vh; background: linear-gradient(180deg, #a9b2bf, #5d6673); }
+.pod3 .pod-step { height: 14vh; background: linear-gradient(180deg, #c98a52, #74461f); }
+@media (orientation: portrait) { .pod-step { padding-top: 1vh; } .pod1 .pod-step { height: 22vh; } .pod2 .pod-step { height: 15vh; } .pod3 .pod-step { height: 10vh; } }
+.tv-ctrl .btn { font-size: clamp(14px, 2.2vmin, 24px); padding: .65em 1.2em; }

@@ -3,8 +3,8 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.5.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.5.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-1.6.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-1.6.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
@@ -35,6 +35,10 @@ Daten liegen lokal unter `%APPDATA%\Pokerkasse\pokerkasse-daten.json` (plus `.ba
 - Sitzplätze werden ausgelost, der Dealer-Button liegt zum Start an allen Tischen auf demselben ausgelosten Sitz. Späte Spieler kommen an den Tisch mit den wenigsten Spielern (bei vollen Tischen an einen neuen).
 - Hinweise beim Host: Tische ausgleichen, Tisch auflösen (Spieler werden zufällig auf freie Plätze verteilt, der Rest bleibt sitzen) und Finaltisch, sobald alle an einen Tisch passen. Beim Finaltisch werden Plätze und Button neu gelost, am TV erscheint ein Pop-up mit der Sitzordnung (30 s oder bis zum Antippen).
 - TV: Banner beim Ausscheiden (Platz, Rauswerfer bei Bounty, Preisgeld), Bubble-Anzeige, „Im Geld – um Platz X“ und Heads-up.
+- Rebuys: Banner am TV („Fene kauft sich wieder ein (2.)“), Anzahl als „R2“ in der Sitzordnung.
+- Tische ausgleichen: Ab welchem Spielerunterschied, stellt man beim Anlegen ein. Nach Bestätigung durch den Host werden zufällige Spieler vom größten an den kleinsten Tisch gesetzt; am TV steht groß, wer an welchen Tisch und Sitz muss und zwischen wem er sitzt – bis der Host die Anzeige schließt. Beim Auflösen eines Tisches erscheint dieselbe Anzeige.
+- Finaltisch: Beim Losen pausiert die Uhr; der Finaltisch-Screen bleibt, bis der Host die Uhr weiterlaufen lässt.
+- Turnierende: Ist nur noch ein Spieler übrig, pausiert die Uhr und am TV erscheint das Treppchen der Geldplätze (max. 3). Der Host bestätigt das Ende oder macht das letzte Ausscheiden rückgängig. In der Abrechnung lässt sich das Treppchen erneut anzeigen.
 - Color-up: Hinweis in der Pause, wenn kleine Chips ab dem nächsten Level nicht mehr gebraucht werden.
 - TV-Ansicht: großer Level-Timer, Blinds, nächstes Level, nächste Pause, Preispool, Spieler, Ø Stack, Auszahlung. Die letzten 10 Sekunden blinkt sie rot. Hoch- und Querformat werden automatisch erkannt.
 - Windows: Ist ein zweiter Bildschirm angeschlossen, öffnet die TV-Ansicht dort automatisch im Vollbild; das Hauptfenster bleibt die Host-Ansicht. Tastatur in der TV-Ansicht: Leertaste = Pause/Weiter, ←/→ = Level zurück/vor, H = Host.
