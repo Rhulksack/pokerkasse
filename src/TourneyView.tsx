@@ -10,6 +10,8 @@ import {
 } from './tourney';
 import { LogModal } from './GameView';
 import TourneySettlement from './TourneySettlement';
+import { tAct } from './tourneyActions';
+import { RemoteCard } from './Remote';
 
 type DistEvent = GameEvent extends infer T ? (T extends GameEvent ? Omit<T, 'id' | 'at'> : never) : never;
 
@@ -114,6 +116,7 @@ export function TvScreen({ game, onHost, onToggle, onJump, onCloseMoves, onEndUn
           <div className="tv-label">Gleich geht’s los</div>
           <div className="tv-blinds">Level 1 · {blinds(t.structure.find((x) => x.kind === 'level'), 1)}</div>
           <Seats game={game} />
+          <RemoteCard gameId={game.id} tv />
         </div>
       ) : (
         <div className="tv-main">
@@ -248,7 +251,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   const ds = useMemo(() => deriveState(game), [game]);
   const [tvExt, setTvExt] = useState<TvState | null>(null);
   const [tvMode, setTvMode] = useState(true);
-  const [modal, setModal] = useState<null | { k: 'rebuy' | 'bust' | 'player'; p: TPlayer } | { k: 'add' | 'log' | 'end' | 'final' | 'endcheck' | 'balance' }>(null);
+  const [modal, setModal] = useState<null | { k: 'rebuy' | 'bust' | 'player'; p: TPlayer } | { k: 'add' | 'log' | 'end' | 'final' | 'endcheck' | 'balance' | 'remote' }>(null);
   const [podiumView, setPodiumView] = useState(false);
   const [toast, setToast] = useState<{ text: string; evIds: string[] } | null>(null);
   const started = game.status !== 'created';
@@ -304,38 +307,12 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   }
 
   const cv = clockAt(t, game.clock, now);
-  const clockDo = (action: string, fn: (g: Game, n: number) => void) => mut((g) => { const n = Date.now(); fn(g, n); g.events.push({ id: uid(), at: n, type: 'clock', action }); });
-  const toggle = () => {
-    if (!started) return start();
-    clockDo(cv.running ? 'pausiert' : 'fortgesetzt', (g, n) => {
-      g.clock = cv.running ? clockOps.pause(t, g.clock, n) : clockOps.resume(t, g.clock, n);
-      if (!cv.running && g.finalTable) g.finalTable.dismissed = true; // Finaltisch-Screen verschwindet, sobald die Uhr weiterläuft
-    });
-  };
-  const jump = (dir: 1 | -1) => {
-    if (!started) return;
-    const target = Math.min(t.structure.length - 1, Math.max(0, cv.idx + dir));
-    const it = t.structure[target];
-    clockDo(`${dir > 0 ? 'weiter' : 'zurück'} zu ${it.kind === 'break' ? 'Pause' : 'Level ' + levelNo(t.structure, target)}`, (g, n) => { g.clock = clockOps.jump(t, g.clock, n, dir); });
-  };
-  const addTime = (min: number) => clockDo(`${min > 0 ? '+' : '−'}${Math.abs(min)} Min`, (g, n) => { g.clock = clockOps.add(t, g.clock, n, min * 60000); });
-  const start = () => mut((g) => {
-    const n = Date.now();
-    g.status = 'running'; g.startedAt = n; g.clock = clockOps.start(t, n);
-    g.events.push({ id: uid(), at: n, type: 'game_started' });
-  });
-
-  const closeMoves = () => mut((g) => { if (g.moveNotice) g.moveNotice.dismissed = true; });
-  const finish = () => mut((g) => { const n = Date.now(); g.status = 'finished'; g.endedAt = n; g.clock = clockOps.pause(t, g.clock, n); delete g.endCheck; g.events.push({ id: uid(), at: n, type: 'game_finished' }); });
-  const endUndo = () => mut((g) => {
-    const n = Date.now();
-    const ec = g.endCheck;
-    const voided = new Set(g.events.filter((x) => x.type === 'void').map((x: any) => x.targetId));
-    const last = ec?.bustId ?? [...g.events].reverse().find((x) => x.type === 'bust' && x.final && !voided.has(x.id))?.id;
-    if (last) g.events.push({ id: uid(), at: n, type: 'void', targetId: last });
-    if (ec?.resume) { g.clock = clockOps.resume(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'fortgesetzt' }); }
-    delete g.endCheck;
-  });
+  const toggle = () => mut((g) => tAct.toggle(g));
+  const jump = (dir: 1 | -1) => mut((g) => tAct.jump(g, dir));
+  const addTime = (min: number) => mut((g) => tAct.addTime(g, min));
+  const closeMoves = () => mut((g) => tAct.closeMoves(g));
+  const finish = () => mut((g) => tAct.finish(g));
+  const endUndo = () => mut((g) => tAct.endUndo(g));
   if (tvMode) return <TvScreen game={game} onHost={() => setTvMode(false)} onToggle={toggle} onJump={jump} onCloseMoves={closeMoves}
     onEndUndo={endPending ? endUndo : undefined} onEndConfirm={endPending ? finish : undefined} />;
 
@@ -353,27 +330,10 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
   const nameOf = (id: string) => st.players.find((x) => x.id === id)?.name ?? '?';
   const finalShown = !!game.finalTable && !game.finalTable.dismissed;
   const movesShown = !!game.moveNotice && !game.moveNotice.dismissed;
-  const applyMoves = (title: string, r: { seating: NonNullable<Game['seating']>; moves: Move[] }) => {
-    mut((g) => {
-      const n = Date.now();
-      g.seating = r.seating;
-      g.moveNotice = { at: n, title, moves: r.moves };
-      g.events.push({ id: uid(), at: n, type: 'clock', action: `${title}: ` + r.moves.map((m) => `${nameOf(m.id)} T${m.from} → T${m.table} S${m.seat}`).join(', ') });
-    });
-  };
-  const doBreak = (table: number) => { if (game.seating) applyMoves(`Tisch ${table} wird aufgelöst`, breakTable(game.seating, table, aliveIds, max)); };
-  const doBalance = () => { if (game.seating) applyMoves('Tische ausgleichen', balanceTables(game.seating, aliveIds, max)); setModal(null); };
+  const doBreak = (table: number) => mut((g) => tAct.breakTable(g, table));
+  const doBalance = () => { mut((g) => tAct.balance(g)); setModal(null); };
   const plan = advice?.kind === 'balance' ? balancePlan(game.seating, aliveIds) : [];
-  const doFinal = () => {
-    mut((g) => {
-      const n = Date.now();
-      g.seating = drawSeats(aliveIds, max); g.finalTable = { at: n };
-      if (g.moveNotice) g.moveNotice.dismissed = true;
-      g.events.push({ id: uid(), at: n, type: 'clock', action: 'Finaltisch gelost' });
-      if (g.clock?.runningSince != null) { g.clock = clockOps.pause(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'pausiert (Finaltisch)' }); }
-    });
-    setModal(null);
-  };
+  const doFinal = () => { mut((g) => tAct.final(g)); setModal(null); };
   const seat = (id: string) => game.seating?.seats[id];
   const hint = isBreak ? colorUpHint(t, cv.idx) : null;
   const warn = started && cv.running && cv.remaining <= 10000;
@@ -395,6 +355,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
             : <button className="btn" onClick={() => window.api!.tvOpen!(game.id, false).then(setTvExt)}>{Icon.tv} TV-Fenster öffnen</button>)}
           {!tvExt?.open && <button className="btn" onClick={() => setTvMode(true)}>{Icon.tv} TV-Ansicht</button>}
           <button className="btn" disabled={!canAdd} title={canAdd ? '' : 'Late Registration ist geschlossen'} onClick={() => setModal({ k: 'add' })}>{Icon.user} Spieler</button>
+          {window.api?.remoteStart && <button className="btn" onClick={() => setModal({ k: 'remote' })}>{Icon.user} Handy</button>}
           <button className="btn" onClick={() => setModal({ k: 'log' })}>{Icon.list} Protokoll</button>
           <button className="btn primary" disabled={!started || st.alive > 1} title={st.alive > 1 ? 'Erst möglich, wenn nur noch ein Spieler übrig ist' : ''} onClick={() => setModal({ k: 'end' })}>{Icon.flag} Turnier beenden</button>
         </div>
@@ -438,6 +399,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
 
         <div className="tcols">
           <div className="tplayers">
+            {!started && <RemoteCard gameId={game.id} />}
             {advice?.kind === 'final' && <div className="warn row wrap-row">Finaltisch: nur noch {aliveIds.length} Spieler, alle passen an einen Tisch.<div className="spacer" /><button className="btn sm" onClick={() => setModal({ k: 'final' })}>{Icon.shuffle} Finaltisch losen</button></div>}
             {advice?.kind === 'break' && <div className="warn row wrap-row">Tisch {advice.table} auflösen: {advice.count} Spieler passen an die übrigen Tische.<div className="spacer" /><button className="btn sm" onClick={() => doBreak(advice.table)}>{Icon.shuffle} Auflösen & verteilen</button></div>}
             {advice?.kind === 'balance' && <div className="warn row wrap-row">Tische ausgleichen: Tisch {advice.from} hat {advice.fromCount}, Tisch {advice.to} nur {advice.toCount} Spieler.<div className="spacer" /><button className="btn sm" onClick={() => setModal({ k: 'balance' })}>{Icon.shuffle} Ausgleichen</button></div>}
@@ -498,7 +460,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
             </div>
             <div className="card pay-list">
               <div className="row"><h3>Sitzplätze</h3><div className="spacer" />
-                <button className="btn sm" onClick={() => mut((g) => { g.seating = drawSeats(aliveIds, max); })}>{Icon.shuffle} Neu losen</button>
+                <button className="btn sm" onClick={() => mut((g) => tAct.redraw(g))}>{Icon.shuffle} Neu losen</button>
               </div>
               <SeatList game={game} aliveIds={aliveIds} rebuys={(id) => st.players.find((x) => x.id === id)?.rebuys ?? 0} />
             </div>
@@ -520,29 +482,18 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
 
       {modal?.k === 'rebuy' && <EntryModal title={`Rebuy: ${modal.p.name}`} t={t} victim={modal.p} others={alive.filter((x) => x.id !== modal.p.id)} onClose={() => setModal(null)}
         onConfirm={(paid, byId) => {
-          const at = Date.now();
-          const evs: GameEvent[] = [];
-          if (t.bounty) evs.push({ id: uid(), at, type: 'bust', playerId: modal.p.id, byId, final: false });
-          evs.push({ id: uid(), at, type: 'buyin', playerId: modal.p.id, amount: entryPrice(t), paid, rebuy: true });
-          mut((g) => { g.events.push(...evs); });
-          setToast({ text: `${modal.p.name}: Rebuy ${fmt(entryPrice(t))} ${paid ? 'bar' : 'angeschrieben'}`, evIds: evs.map((x) => x.id) });
+          let ids: string[] = [];
+          mut((g) => { ids = tAct.rebuy(g, modal.p.id, paid, byId); });
+          setToast({ text: `${modal.p.name}: Rebuy ${fmt(entryPrice(t))} ${paid ? 'bar' : 'angeschrieben'}`, evIds: ids });
           setModal(null);
         }} />}
       {modal?.k === 'bust' && <BustModal p={modal.p} t={t} place={st.alive} rebuyOpen={rebuyOpen && !maxed(modal.p)} others={alive.filter((x) => x.id !== modal.p.id)} onClose={() => setModal(null)}
         onRebuy={() => setModal({ k: 'rebuy', p: modal.p })}
         onConfirm={(byId) => {
           const last = st.alive === 2;
-          const n = Date.now();
-          const ev = { id: uid(), at: n, type: 'bust', playerId: modal.p.id, byId, final: true } as GameEvent;
-          mut((g) => {
-            g.events.push(ev);
-            if (last) {
-              const wasRunning = g.clock?.runningSince != null;
-              if (wasRunning) { g.clock = clockOps.pause(t, g.clock, n); g.events.push({ id: uid(), at: n, type: 'clock', action: 'pausiert (Turnierende)' }); }
-              g.endCheck = { bustId: ev.id, resume: wasRunning };
-            }
-          });
-          if (!last) setToast({ text: `${modal.p.name} ist raus (Platz ${st.alive})`, evIds: [ev.id] });
+          let ids: string[] = [];
+          mut((g) => { ids = tAct.bust(g, modal.p.id, byId).ids; });
+          if (!last) setToast({ text: `${modal.p.name} ist raus (Platz ${st.alive})`, evIds: ids });
           setModal(null);
         }} />}
       {modal?.k === 'player' && <PlayerModal game={game} p={st.players.find((x) => x.id === modal.p.id)!} onClose={() => setModal(null)} mut={mut} />}
@@ -556,6 +507,7 @@ export default function TourneyView({ game, data, update, onBack }: { game: Game
           <p className="muted" style={{ margin: 0 }}>Nur noch {aliveIds.length} Spieler – alle passen an einen Tisch (max. {max}). Sitzplätze und Dealer-Button werden neu ausgelost, die Uhr pausiert und am TV erscheint „Finaltisch“ mit der neuen Sitzordnung – bis du die Uhr weiterlaufen lässt.</p>
         </Modal>
       )}
+      {modal?.k === 'remote' && <Modal title="Mit dem Handy steuern" wide onClose={() => setModal(null)} footer={<button className="btn" onClick={() => setModal(null)}>Schließen</button>}><RemoteCard gameId={game.id} /></Modal>}
       {modal?.k === 'balance' && (
         <Modal title="Tische ausgleichen" onClose={() => setModal(null)} footer={<>
           <button className="btn" onClick={() => setModal(null)}>Abbrechen</button>
@@ -611,7 +563,7 @@ function SeatList({ game, aliveIds, rebuys }: { game: Game; aliveIds: string[]; 
   );
 }
 
-function PaidToggle({ paid, setPaid }: { paid: boolean; setPaid: (v: boolean) => void }) {
+export function PaidToggle({ paid, setPaid }: { paid: boolean; setPaid: (v: boolean) => void }) {
   return (
     <div className="seg full">
       <button className={paid ? 'on cash' : ''} onClick={() => setPaid(true)}>{Icon.cash} Bar bezahlt</button>
@@ -620,7 +572,7 @@ function PaidToggle({ paid, setPaid }: { paid: boolean; setPaid: (v: boolean) =>
   );
 }
 
-function KnockerPick({ others, by, setBy }: { others: TPlayer[]; by: string | null; setBy: (v: string) => void }) {
+export function KnockerPick({ others, by, setBy }: { others: TPlayer[]; by: string | null; setBy: (v: string) => void }) {
   return (
     <div className="section">
       <h3>Rausgeworfen von (bekommt das Bounty)</h3>
@@ -631,7 +583,7 @@ function KnockerPick({ others, by, setBy }: { others: TPlayer[]; by: string | nu
   );
 }
 
-function EntryModal({ title, t, victim, others, onClose, onConfirm }: { title: string; t: TourneyConfig; victim: TPlayer; others: TPlayer[]; onClose: () => void; onConfirm: (paid: boolean, byId: string | null) => void }) {
+export function EntryModal({ title, t, victim, others, onClose, onConfirm }: { title: string; t: TourneyConfig; victim: TPlayer; others: TPlayer[]; onClose: () => void; onConfirm: (paid: boolean, byId: string | null) => void }) {
   const [paid, setPaid] = useState(true);
   const [by, setBy] = useState<string | null>(null);
   const need = !!t.bounty && others.length > 0;
@@ -651,7 +603,7 @@ function EntryModal({ title, t, victim, others, onClose, onConfirm }: { title: s
   );
 }
 
-function BustModal({ p, t, place, rebuyOpen, others, onClose, onConfirm, onRebuy }: { p: TPlayer; t: TourneyConfig; place: number; rebuyOpen: boolean; others: TPlayer[]; onClose: () => void; onConfirm: (byId: string | null) => void; onRebuy: () => void }) {
+export function BustModal({ p, t, place, rebuyOpen, others, onClose, onConfirm, onRebuy }: { p: TPlayer; t: TourneyConfig; place: number; rebuyOpen: boolean; others: TPlayer[]; onClose: () => void; onConfirm: (byId: string | null) => void; onRebuy: () => void }) {
   const [by, setBy] = useState<string | null>(null);
   const need = !!t.bounty && others.length > 0;
   return (
@@ -666,7 +618,7 @@ function BustModal({ p, t, place, rebuyOpen, others, onClose, onConfirm, onRebuy
   );
 }
 
-function PlayerModal({ game, p, onClose, mut }: { game: Game; p: TPlayer; onClose: () => void; mut: (fn: (g: Game) => void) => void }) {
+export function PlayerModal({ game, p, onClose, mut }: { game: Game; p: TPlayer; onClose: () => void; mut: (fn: (g: Game) => void) => void }) {
   const s = deriveState(game);
   const ps = s.players.find((x) => x.id === p.id)!;
   const lastPaid = [...ps.buyins].reverse().find((b) => b.paid);
@@ -697,20 +649,12 @@ function PlayerModal({ game, p, onClose, mut }: { game: Game; p: TPlayer; onClos
   );
 }
 
-function LateRegModal({ game, data, t, update, aliveIds, started, onClose }: { game: Game; data: AppData; t: TourneyConfig; update: Update; aliveIds: string[]; started: boolean; onClose: () => void }) {
+export function LateRegModal({ game, data, t, update, aliveIds, started, onClose }: { game: Game; data: AppData; t: TourneyConfig; update: Update; aliveIds: string[]; started: boolean; onClose: () => void }) {
   const [n, setN] = useState('');
   const [paid, setPaid] = useState(true);
   const avail = data.players.filter((p) => !game.players.some((x) => x.id === p.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'));
   const add = (id: string, name: string, isNew: boolean) => {
-    const at = Date.now();
-    update((d) => {
-      if (isNew) d.players.push({ id, name });
-      const g = d.games.find((x) => x.id === game.id)!;
-      g.players.push({ id, name });
-      g.events.push({ id: uid(), at, type: 'player_added', playerId: id });
-      g.events.push({ id: uid(), at, type: 'buyin', playerId: id, amount: entryPrice(t), paid });
-      g.seating = seatLate(g.seating, id, aliveIds, maxPer(t));
-    });
+    update((d) => { tAct.addPlayer(d, d.games.find((x) => x.id === game.id)!, id, name, paid); });
   };
   const addNew = () => {
     const name = n.trim();

@@ -3,8 +3,8 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.6.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.6.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-1.7.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-1.7.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
@@ -43,6 +43,17 @@ Daten liegen lokal unter `%APPDATA%\Pokerkasse\pokerkasse-daten.json` (plus `.ba
 - TV-Ansicht: großer Level-Timer, Blinds, nächstes Level, nächste Pause, Preispool, Spieler, Ø Stack, Auszahlung. Die letzten 10 Sekunden blinkt sie rot. Hoch- und Querformat werden automatisch erkannt.
 - Windows: Ist ein zweiter Bildschirm angeschlossen, öffnet die TV-Ansicht dort automatisch im Vollbild; das Hauptfenster bleibt die Host-Ansicht. Tastatur in der TV-Ansicht: Leertaste = Pause/Weiter, ←/→ = Level zurück/vor, H = Host.
 - iPhone/iPad: TV-Ansicht per AirPlay-Bildschirmsynchronisierung auf den Fernseher spiegeln, über „Host“ in die Verwaltung wechseln.
+
+## Fernsteuerung mit dem Handy (Turnier)
+
+Die Windows-App startet im Turnier einen kleinen Server im lokalen Netz (Port 8765). Vor dem Start zeigen Host-Ansicht und TV-Fenster einen QR-Code, später über den Button „Handy“.
+
+- Handy ins selbe WLAN wie der Laptop (oder Laptop in den Hotspot des Handys), QR-Code mit der Kamera scannen.
+- Beim ersten Mal fragt die Windows-Firewall nach – Zugriff für private Netzwerke erlauben.
+- Am Handy: Uhr starten/anhalten, ±1 Min, Level vor/zurück, Raus, Rebuy, Late Reg, Spielerdetails, Finaltisch, Ausgleichen, Tisch auflösen, Hinweise schließen, Treppchen bestätigen oder rückgängig machen. Die Abrechnung bleibt am Laptop.
+- Laptop und Handy können gleichzeitig bedienen.
+- iPhone: automatische Sperre für den Abend auf „Nie“ stellen. Nach dem Entsperren verbindet sich die Seite neu.
+- Nur für die Windows-App, nicht für die Web-App auf GitHub Pages.
 
 ## Entwicklung
 ```

@@ -13,10 +13,12 @@ declare global {
       tvClose?: () => Promise<TvState>;
       tvState?: () => Promise<TvState>;
       onTvChanged?: (cb: (st: TvState) => void) => () => void;
+      remoteStart?: () => Promise<RemoteInfo>;
     };
   }
 }
 
+export interface RemoteInfo { running: boolean; port: number | null; ips: string[] }
 export interface TvState { open: boolean; gameId: string | null; displays: number; external: boolean }
 
 const KEY = 'pokerkasse-daten';
