@@ -4,13 +4,15 @@ import { loadData, saveData } from './storage';
 import { Avatar, Icon, Modal, fmtDate, useNow } from './ui';
 import GameView from './GameView';
 import TourneyView, { TvWindow } from './TourneyView';
+import { PresetBar } from './Presets';
+import StatsView from './StatsView';
 import TourneySetup, { tourneyErrors } from './TourneySetup';
 import { TourneyConfig, defaultTourney, drawSeats, entryPrice, maxPer, tourneyState } from './tourney';
 import { isAppData, isElectron, isIOS, isStandalone, mergeData, shareOrDownload } from './platform';
 
 export type Update = (fn: (d: AppData) => void) => void;
 
-type Route = { view: 'home' } | { view: 'new' } | { view: 'players' } | { view: 'game'; id: string };
+type Route = { view: 'home' } | { view: 'new' } | { view: 'players' } | { view: 'stats' } | { view: 'game'; id: string };
 
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
@@ -40,6 +42,7 @@ export default function App() {
   }
   if (route.view === 'new')
     return <NewGame data={data} update={update} onCancel={() => setRoute({ view: 'home' })} onCreated={(id) => setRoute({ view: 'game', id })} />;
+  if (route.view === 'stats') return <StatsView data={data} onBack={() => setRoute({ view: 'home' })} />;
   if (route.view === 'players') return <PlayersView data={data} update={update} onBack={() => setRoute({ view: 'home' })} />;
   return <Home data={data} update={update} replace={(d) => { setData(d); saveData(d); }} open={(id) => setRoute({ view: 'game', id })} go={setRoute} />;
 }
@@ -69,6 +72,7 @@ function Home({ data, update, replace, open, go }: { data: AppData; update: Upda
           </div>
           <div className="spacer" />
           <button className="btn" onClick={() => setBackup(true)}>{Icon.save} Datensicherung</button>
+          <button className="btn" onClick={() => go({ view: 'stats' })}>{Icon.chart} Statistik</button>
           <button className="btn" onClick={() => go({ view: 'players' })}>{Icon.users} Spielerliste ({data.players.length})</button>
           <button className="btn primary lg" onClick={() => go({ view: 'new' })}>{Icon.plus} Neues Homegame</button>
         </div>
@@ -142,6 +146,7 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
   const all = [...data.players, ...extra];
   const [kind, setKind] = useState<'cash' | 'tourney'>('cash');
   const [tc, setTc] = useState<TourneyConfig>(() => ({ ...defaultTourney(), ...structuredClone(data.lastTourney ?? {}) }));
+  const [preset, setPreset] = useState<string | null>(null);
   const setT = (fn: (t: TourneyConfig) => void) => setTc((p) => { const n = structuredClone(p); fn(n); return n; });
   const errs = kind === 'tourney' ? tourneyErrors(tc) : [];
 
@@ -223,6 +228,7 @@ function NewGame({ data, update, onCancel, onCreated }: { data: AppData; update:
               <button className="btn" onClick={addNew} disabled={!newName.trim()}>{Icon.plus} Hinzufügen</button>
             </div>
           </div>
+          {kind === 'tourney' && <PresetBar data={data} update={update} tc={tc} setTc={setTc} sel={preset} setSel={setPreset} />}
           {kind === 'tourney' && <TourneySetup t={tc} set={setT} players={sel.length} />}
           {errs.length > 0 && <div className="warn">{errs.map((x) => <div key={x}>{x}</div>)}</div>}
           {kind === 'tourney' ? (

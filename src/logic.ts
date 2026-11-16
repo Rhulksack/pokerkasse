@@ -70,7 +70,10 @@ export interface AppData {
   players: MasterPlayer[];
   games: Game[];
   lastTourney?: import('./tourney').TourneyConfig;
+  tourneyPresets?: TourneyPreset[];
 }
+
+export interface TourneyPreset { id: string; name: string; config: import('./tourney').TourneyConfig; updatedAt: number }
 
 export const emptyData = (): AppData => ({ version: 1, players: [], games: [] });
 

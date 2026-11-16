@@ -63,6 +63,11 @@ export function mergeData(cur: AppData, inc: AppData): { data: AppData; added: n
     if (i < 0) { data.games.push(g); added++; }
     else if (g.events.length > data.games[i].events.length || (g.status === 'finished' && data.games[i].status !== 'finished')) { data.games[i] = g; updated++; }
   }
+  for (const pr of inc.tourneyPresets ?? []) {
+    const list = (data.tourneyPresets ??= []);
+    const i = list.findIndex((x) => x.id === pr.id);
+    if (i < 0) list.push(pr); else if ((pr.updatedAt ?? 0) > (list[i].updatedAt ?? 0)) list[i] = pr;
+  }
   return { data, added, updated };
 }
 

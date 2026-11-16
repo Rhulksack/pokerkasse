@@ -35,6 +35,7 @@ export const Icon = {
   prev: P('M19 5L9 12l10 7V5zM5 5v14'),
   tv: P('M3 5h18v12H3zM8 21h8M12 17v4'),
   trophy: P('M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4'),
+  chart: P('M4 20V10M10 20V4M16 20v-7M22 20H2'),
   shuffle: P('M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5'),
   skull: P('M12 3a8 8 0 00-5 14.2V20h10v-2.8A8 8 0 0012 3zM9 12h.01M15 12h.01M10 20v-2M14 20v-2'),
   dots: P('M5 12h.01M12 12h.01M19 12h.01'),

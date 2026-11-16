@@ -664,3 +664,60 @@ html.remote .modal-foot .btn { flex: 1; min-height: 44px; }
   .modal-body .chips-pick { gap: 6px; }
   .modal-body .chip { height: 32px; padding: 0 11px; }
 }
+
+/* v1.8 Presets + Statistik */
+.preset-bar { padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.stats { max-width: 1180px; }
+.stats-filters { display: grid; gap: 12px; }
+.stats-filters .seg.full { max-width: 520px; }
+.stats-dates .field { flex: 1; min-width: 150px; max-width: 220px; }
+.stats-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+.stats-kpis .kpi b { font-size: 26px; }
+.titles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 10px; }
+.title-card { padding: 14px 16px; display: grid; gap: 3px; border-left: 3px solid var(--accent); }
+.title-name { font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.title-who { font-size: 18px; }
+.title-val { font-weight: 700; }
+.title-card .note { margin-top: 2px; }
+.t-chipleader, .t-monster, .t-shark, .t-heater, .t-champ { border-left-color: var(--green); }
+.t-chipleader .title-name, .t-monster .title-name, .t-shark .title-name, .t-heater .title-name, .t-champ .title-name { color: var(--green); }
+.t-loser, .t-badbeat, .t-fish, .t-tilt, .t-bubble { border-left-color: var(--red); }
+.t-loser .title-name, .t-badbeat .title-name, .t-fish .title-name, .t-tilt .title-name, .t-bubble .title-name { color: var(--red); }
+.t-atm, .t-hunter, .t-itm { border-left-color: var(--amber); }
+.t-atm .title-name, .t-hunter .title-name, .t-itm .title-name { color: var(--amber); }
+.stats-table tr.clickable { cursor: pointer; }
+@media (hover: hover) { .stats-table tbody tr.clickable:hover td { background: var(--surface-2); } }
+.stats-name { display: inline-flex; align-items: center; gap: 10px; }
+.stats-name .rank { width: 22px; text-align: right; }
+.stats-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stats-mini > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.stats-mini span { font-size: 12px; }
+.stats-mini b { font-size: 18px; }
+.chart-wrap { display: grid; gap: 6px; }
+.result-chart { width: 100%; height: auto; display: block; background: var(--surface-2); border-radius: 12px; }
+.result-chart .grid { stroke: var(--border); stroke-width: 1; }
+.result-chart .zero { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.result-chart .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-info { font-size: 13px; min-height: 20px; }
+.stats-games { display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.stats-game { display: grid; grid-template-columns: 72px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+.sg-name { display: grid; min-width: 0; }
+.sg-name .note { font-size: 12px; }
+@media (max-width: 760px) {
+  .stats-kpis { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stats-kpis .kpi { padding: 10px 12px; }
+  .stats-kpis .kpi b { font-size: 18px; }
+  .stats-kpis .kpi span { font-size: 11.5px; }
+  .titles { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .title-card { padding: 10px 12px; }
+  .title-who { font-size: 16px; }
+  .title-card .note { font-size: 11.5px; }
+  .table.stack.stats-table tr { grid-template-columns: 1fr 1fr 1fr; }
+  .table.stack.stats-table td:last-child:nth-child(even) { grid-column: auto; }
+  .stats-table .stats-name { width: 100%; }
+  .stats-games { max-height: none; }
+  .result-chart .axis { font-size: 20px; }
+  .table.stack.stats-table tr { gap: 6px 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .table.stack.stats-table td { font-size: 14px; gap: 1px; }
+  .table.stack.stats-table td::before { font-size: 11px; }
+}

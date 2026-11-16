@@ -3,8 +3,8 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.7.2.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.7.2.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-1.8.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-1.8.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
@@ -43,6 +43,20 @@ Daten liegen lokal unter `%APPDATA%\Pokerkasse\pokerkasse-daten.json` (plus `.ba
 - TV-Ansicht: großer Level-Timer, Blinds, nächstes Level, nächste Pause, Preispool, Spieler, Ø Stack, Auszahlung. Die letzten 10 Sekunden blinkt sie rot. Hoch- und Querformat werden automatisch erkannt.
 - Windows: Ist ein zweiter Bildschirm angeschlossen, öffnet die TV-Ansicht dort automatisch im Vollbild; das Hauptfenster bleibt die Host-Ansicht. Tastatur in der TV-Ansicht: Leertaste = Pause/Weiter, ←/→ = Level zurück/vor, H = Host.
 - iPhone/iPad: TV-Ansicht per AirPlay-Bildschirmsynchronisierung auf den Fernseher spiegeln, über „Host“ in die Verwaltung wechseln.
+
+## Turnier-Presets
+
+Beim Anlegen eines Turniers: Einstellungen vornehmen und „Als neues Preset speichern“ (z. B. „Turbo Bounty“). Danach lädt ein Klick auf den Namen alle Turnier-Einstellungen (ohne Spieler). Änderungen am geladenen Preset zeigt „geändert“, mit „überschreiben“ werden sie gespeichert. Ohne Auswahl gelten wie bisher die letzten Einstellungen.
+
+## Statistik
+
+Startseite → „Statistik“. Tabs Gesamt, Cash-Game und Turnier, Zeitfilter (alle Spiele, dieses Jahr, 12 Monate, 90/30 Tage, eigener Zeitraum). Es zählen nur abgeschlossene Spiele.
+
+- Cash-Game: Chipwert beim Cash-out minus Buy-ins.
+- Turnier: Preisgeld plus Bounties minus alle Einstiege (Buy-in, Rebuys, eigenes Bounty).
+- Angeschriebene Beträge zählen wie bar bezahlt.
+- Titel wie Chipleader, Biggest Loser, Shark, Fisch, Monster Pot, Bad Beat, Heater, Auf Tilt, ATM, Grinder, Champion, Bounty Hunter, In the Money, Bubble Boy.
+- Spieler antippen: Verlauf als Diagramm und Liste aller Spiele.
 
 ## Fernsteuerung mit dem Handy (Turnier)
 
