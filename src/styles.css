@@ -648,3 +648,19 @@ html.remote .warn { padding: 8px 10px; font-size: 13px; display: flex; align-ite
 html.remote .warn .btn { margin-left: 0 !important; }
 html.remote .modal-foot { flex: none; flex-wrap: nowrap; gap: 8px; }
 html.remote .modal-foot .btn { flex: 1; min-height: 44px; }
+
+/* v1.7.2 Handy hochkant: Ausscheiden-/Rebuy-Hinweis als kompakte Leiste */
+@media (orientation: portrait) and (max-width: 760px) {
+  .tv-bust { flex-wrap: nowrap; justify-content: flex-start; text-align: left; white-space: normal; font-size: 16px; gap: 10px; padding: 10px 14px; border-radius: 14px; width: calc(100vw - 32px); max-width: 520px; line-height: 1.3; }
+  .tv-bust .tv-bust-place { flex: none; font-size: 20px; }
+  .tv-bust span:not(.tv-bust-place):not(.tv-bust-prize) { flex: 1; min-width: 0; }
+  .tv-bust .tv-bust-prize { flex: none; }
+}
+@media (max-width: 760px) {
+  .modal, .modal.wide { display: flex; flex-direction: column; gap: 12px; overflow: hidden; padding-top: 14px; }
+  .modal-head { flex: none; }
+  .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; gap: 12px; }
+  .modal-foot { flex: none; }
+  .modal-body .chips-pick { gap: 6px; }
+  .modal-body .chip { height: 32px; padding: 0 11px; }
+}
