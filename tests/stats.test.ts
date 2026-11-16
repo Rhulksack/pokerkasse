@@ -70,3 +70,23 @@ describe('Statistik', () => {
     expect(ts.find((t) => t.key === 'atm')!.who).toBe('B, D'); // Gleichstand: beide
   });
 });
+
+describe('Rake/Tips und Import', () => {
+  it('Rake und Tips je Spiel, Summe und Schnitt', async () => {
+    const { collectGames, houseSummary } = await import('../src/stats');
+    const g1 = cash('h1', 1, { A: [50] }, { A: 40 }); g1.final!.rake = 6; g1.final!.tips = 4;
+    const g2 = cash('h2', 2, { A: [50] }, { A: 50 });
+    const h = houseSummary(collectGames({ version: 1, players: [{ id: 'A', name: 'A' }], games: [g1, g2] }));
+    expect(h).toMatchObject({ games: 2, rake: 6, tips: 4, avgRake: 3, avgTips: 2, total: 10 });
+  });
+  it('Import: gleicher Name, andere ID wird zusammengeführt', async () => {
+    const { mergeData } = await import('../src/platform');
+    const cur: AppData = { version: 1, players: [{ id: 'X', name: 'Qualli' }], games: [] };
+    const inc: AppData = { version: 1, players: [{ id: 'st-1', name: 'qualli' }], games: [cash('m1', 1, { 'st-1': [20] }, { 'st-1': 30 })] };
+    const m = mergeData(cur, inc).data;
+    expect(m.players).toHaveLength(1);
+    expect(m.games[0].players[0].id).toBe('X');
+    expect(m.games[0].final!.chips).toEqual({ X: 30 });
+    expect(collectEntries(m)[0]).toMatchObject({ playerId: 'X', name: 'Qualli', result: 10 });
+  });
+});

@@ -3,8 +3,8 @@
 Desktop-App (Windows) und iPhone-Web-App zur Verwaltung von Poker-Homegames – Cash-Game und Turnier. Cash-Game: Spieler, Buy-ins (bar / angeschrieben), Rake & Dealer-Tips, vorzeitige Cash-outs, Chip-Abgleich und Endabrechnung mit fairer 5-€-Rundung.
 
 ## Installation
-- `Pokerkasse-Setup-1.8.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
-- `Pokerkasse-Portable-1.8.0.exe`: ohne Installation direkt startbar.
+- `Pokerkasse-Setup-1.9.0.exe`: normaler Installer (Startmenü, Desktop-Verknüpfung).
+- `Pokerkasse-Portable-1.9.0.exe`: ohne Installation direkt startbar.
 
 Da die App nicht signiert ist, zeigt Windows SmartScreen beim ersten Start evtl. „Der Computer wurde durch Windows geschützt“ → „Weitere Informationen“ → „Trotzdem ausführen“.
 
@@ -57,6 +57,9 @@ Startseite → „Statistik“. Tabs Gesamt, Cash-Game und Turnier, Zeitfilter (
 - Angeschriebene Beträge zählen wie bar bezahlt.
 - Titel wie Chipleader, Biggest Loser, Shark, Fisch, Monster Pot, Bad Beat, Heater, Auf Tilt, ATM, Grinder, Champion, Bounty Hunter, In the Money, Bubble Boy.
 - Spieler antippen: Verlauf als Diagramm und Liste aller Spiele.
+- Rake und Dealer-Tips: Summe und Schnitt pro Spiel im gewählten Zeitraum, auf Wunsch als Liste pro Spiel.
+- Beim Zusammenführen einer Sicherung werden Spieler mit gleichem Namen (Groß-/Kleinschreibung egal) zu einem Spieler zusammengelegt.
+- Aus Stack-Tracker importierte Spiele haben keine Uhrzeiten; bei Turnieren sind nur die bezahlten Plätze bekannt.
 
 ## Fernsteuerung mit dem Handy (Turnier)
 

@@ -27,11 +27,13 @@ export function collectEntries(data: AppData): Entry[] {
     if (g.kind === 'tourney' && g.tourney) {
       const { rows, st } = tourneySettlement(g);
       const paidPlaces = st.prizes.filter((x) => x > 0).length;
+      const imp = !!g.source;
       for (const r of rows) {
+        const place = imp && !(r.prize > 0) ? null : r.place;
         out.push({
           gameId: g.id, gameName: g.name, at, kind: 'tourney', playerId: r.id, name: nameOf(r.id, r.name),
           result: r.result, buyIn: r.totalIn, buyins: r.entries,
-          place: r.place, prize: r.prize, bountyWon: r.bountyWon, bounties: r.bounties + (r.place === 1 ? 1 : 0), rebuys: r.rebuys,
+          place, prize: r.prize, bountyWon: r.bountyWon, bounties: r.bounties + (r.place === 1 ? 1 : 0), rebuys: r.rebuys,
           paidPlaces, field: st.players.length,
         });
       }
@@ -133,4 +135,33 @@ export interface Range { from: number | null; to: number | null }
 
 export function filterEntries(es: Entry[], kind: StatKind, r: Range) {
   return es.filter((x) => (kind === 'all' || x.kind === kind) && (r.from == null || x.at >= r.from) && (r.to == null || x.at <= r.to));
+}
+
+export interface GameMeta { gameId: string; gameName: string; at: number; kind: 'cash' | 'tourney'; rake: number; tips: number }
+
+/** Rake und Dealer-Tips je abgeschlossenem Spiel (gehören zum Spiel, nicht zu einzelnen Spielern). */
+export function collectGames(data: AppData): GameMeta[] {
+  const out: GameMeta[] = [];
+  for (const g of data.games) {
+    if (g.status !== 'finished') continue;
+    const kind = g.kind === 'tourney' && g.tourney ? 'tourney' : 'cash';
+    let rakeC = c(g.final?.rake ?? 0), tipsC = c(g.final?.tips ?? 0);
+    for (const ev of activeEvents(g).events) {
+      if (ev.type === 'rake') rakeC += c(ev.amount);
+      if (ev.type === 'tip') tipsC += c(ev.amount);
+    }
+    out.push({ gameId: g.id, gameName: g.name, at: gameDate(g), kind, rake: e(rakeC), tips: e(tipsC) });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+export function filterGames(gs: GameMeta[], kind: StatKind, r: Range) {
+  return gs.filter((x) => (kind === 'all' || x.kind === kind) && (r.from == null || x.at >= r.from) && (r.to == null || x.at <= r.to));
+}
+
+export function houseSummary(gs: GameMeta[]) {
+  const rake = e(gs.reduce((a, x) => a + c(x.rake), 0)), tips = e(gs.reduce((a, x) => a + c(x.tips), 0));
+  const n = gs.length;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return { games: n, rake, tips, avgRake: n ? r2(rake / n) : 0, avgTips: n ? r2(tips / n) : 0, total: e(c(rake) + c(tips)) };
 }

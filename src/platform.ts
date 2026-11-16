@@ -57,8 +57,15 @@ export function isAppData(x: any): x is AppData {
 export function mergeData(cur: AppData, inc: AppData): { data: AppData; added: number; updated: number } {
   const data = structuredClone(cur);
   let added = 0, updated = 0;
-  for (const p of inc.players) if (!data.players.some((x) => x.id === p.id || x.name.toLowerCase() === p.name.toLowerCase())) data.players.push(p);
-  for (const g of inc.games) {
+  // Gleicher Name, andere ID: eingehende Spiele auf den vorhandenen Spieler umschreiben
+  const remap = new Map<string, string>();
+  for (const p of inc.players) {
+    if (data.players.some((x) => x.id === p.id)) continue;
+    const same = data.players.find((x) => x.name.trim().toLowerCase() === p.name.trim().toLowerCase());
+    if (same) remap.set(p.id, same.id); else data.players.push(p);
+  }
+  const games = remap.size ? inc.games.map((g) => remapGame(g, remap)) : inc.games;
+  for (const g of games) {
     const i = data.games.findIndex((x) => x.id === g.id);
     if (i < 0) { data.games.push(g); added++; }
     else if (g.events.length > data.games[i].events.length || (g.status === 'finished' && data.games[i].status !== 'finished')) { data.games[i] = g; updated++; }
@@ -82,4 +89,19 @@ export function autoLabelTables() {
   };
   new MutationObserver(run).observe(document.body, { childList: true, subtree: true });
   run();
+}
+
+/** Ersetzt Spieler-IDs in allen Feldern eines Spiels (Spieler, Ereignisse, Endabrechnung, Turnierdaten). */
+function remapGame<T>(g: T, m: Map<string, string>): T {
+  const walk = (v: any): any => {
+    if (typeof v === 'string') return m.get(v) ?? v;
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      const o: any = {};
+      for (const [k, x] of Object.entries(v)) o[m.get(k) ?? k] = walk(x);
+      return o;
+    }
+    return v;
+  };
+  return walk(g);
 }

@@ -37,7 +37,7 @@ export default function SettlementView({ game, update, onBack, onReopen }: { gam
     <div className="page">
       <header className="topbar">
         <button className="btn ghost" onClick={onBack}>{Icon.back} <span className="lbl">Homegames</span></button>
-        <div className="title"><b>{game.name} · Endabrechnung</b><span>{fmtDate(game.createdAt)} · {fmtTime(game.startedAt ?? game.createdAt)}–{fmtTime(game.endedAt!)}</span></div>
+        <div className="title"><b>{game.name} · Endabrechnung</b><span>{fmtDate(game.createdAt)} · {game.source ? 'importiert aus Stack-Tracker' : `${fmtTime(game.startedAt ?? game.createdAt)}–${fmtTime(game.endedAt!)}`}</span></div>
         <div className="spacer" />
         <div className="actions">
           <button className="btn" onClick={() => setLog(true)}>{Icon.list} Protokoll</button>

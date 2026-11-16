@@ -127,7 +127,7 @@ function GameItem({ g, now, onOpen, onDelete }: { g: Game; now: number; onOpen: 
         )}
       </div>
       <div className="meta">
-        <div><span>Spielzeit</span><span className="num">{fmtDuration(dur)}</span></div>
+        <div><span>Spielzeit</span><span className="num">{g.source ? '–' : fmtDuration(dur)}</span></div>
         <div><span>Spieler</span><span>{g.players.length}</span></div>
         {g.kind === 'tourney'
           ? <div><span>Preispool</span><span className="num">{fmt(tourneyState(g).prizePool)}</span></div>

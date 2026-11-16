@@ -721,3 +721,5 @@ html.remote .modal-foot .btn { flex: 1; min-height: 44px; }
   .table.stack.stats-table td { font-size: 14px; gap: 1px; }
   .table.stack.stats-table td::before { font-size: 11px; }
 }
+.house-kpis { grid-template-columns: repeat(4, 1fr); margin-top: 10px; }
+@media (max-width: 760px) { .house-kpis { grid-template-columns: repeat(2, 1fr); } }

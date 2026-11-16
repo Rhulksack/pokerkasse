@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AppData, fmt } from './logic';
-import { Entry, PlayerStat, Range, StatKind, collectEntries, filterEntries, playerStats, titles } from './stats';
+import { Entry, PlayerStat, Range, StatKind, collectEntries, collectGames, filterEntries, filterGames, houseSummary, playerStats, titles } from './stats';
 import { Avatar, Icon, Modal } from './ui';
 
 type Preset = 'all' | 'year' | '365' | '90' | '30' | 'custom';
@@ -23,8 +23,12 @@ function rangeFor(p: Preset, from: string, to: string): Range {
   return { from: null, to: null };
 }
 
+const e2 = (v: number) => Math.round(v * 100) / 100;
+
 export default function StatsView({ data, onBack }: { data: AppData; onBack: () => void }) {
   const all = useMemo(() => collectEntries(data), [data]);
+  const allGames = useMemo(() => collectGames(data), [data]);
+  const [showHouse, setShowHouse] = useState(false);
   const [kind, setKind] = useState<StatKind>('all');
   const [preset, setPreset] = useState<Preset>('all');
   const [from, setFrom] = useState(() => (all.length ? isoDay(all[0].at) : isoDay(Date.now())));
@@ -38,6 +42,8 @@ export default function StatsView({ data, onBack }: { data: AppData; onBack: () 
   const games = new Set(entries.map((x) => x.gameId)).size;
   const volume = entries.reduce((a, x) => a + x.buyIn, 0);
   const sel = ps.find((p) => p.id === open) ?? null;
+  const gms = filterGames(allGames, kind, range).filter((g) => entries.some((x) => x.gameId === g.gameId));
+  const house = houseSummary(gms);
 
   return (
     <div className="page">
@@ -74,6 +80,33 @@ export default function StatsView({ data, onBack }: { data: AppData; onBack: () 
             <div className="card kpi"><span className="muted">Spieler</span><b className="num">{ps.length}</b></div>
             <div className="card kpi"><span className="muted">Insgesamt eingesetzt</span><b className="num">{money(volume)}</b></div>
           </div>
+
+          {house.total > 0 && <>
+          <h3 style={{ marginTop: 24 }}>Rake &amp; Dealer-Tips</h3>
+          <div className="stats-kpis house-kpis">
+            <div className="card kpi"><span className="muted">Rake gesamt</span><b className="num">{money(house.rake)}</b></div>
+            <div className="card kpi"><span className="muted">Ø Rake pro Spiel</span><b className="num">{money(house.avgRake)}</b></div>
+            <div className="card kpi"><span className="muted">Tips gesamt</span><b className="num">{money(house.tips)}</b></div>
+            <div className="card kpi"><span className="muted">Ø Tips pro Spiel</span><b className="num">{money(house.avgTips)}</b></div>
+          </div>
+          <div className="row wrap-row" style={{ marginTop: 8, justifyContent: 'space-between' }}>
+            <span className="note">Zusammen {money(house.total)} aus {house.games} Spiel{house.games === 1 ? '' : 'en'}. Schnitt über alle Spiele im Zeitraum, auch ohne Rake/Tips.</span>
+            <button className="btn ghost sm" onClick={() => setShowHouse((v) => !v)}>{showHouse ? 'Liste ausblenden' : 'Pro Spiel anzeigen'}</button>
+          </div>
+          {showHouse && (
+            <div className="card" style={{ marginTop: 8 }}>
+              <div className="stats-games">
+                {[...gms].reverse().map((g) => (
+                  <div key={g.gameId} className="stats-game">
+                    <span className="muted num">{dshort(g.at)}</span>
+                    <span className="sg-name">{g.gameName}<span className="note">{g.kind === 'tourney' ? 'Turnier' : 'Cash'} · Rake {money(g.rake)} · Tips {money(g.tips)}</span></span>
+                    <b className="num">{money(e2(g.rake + g.tips))}</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </>}
 
           {ts.length > 0 && <>
             <h3 style={{ marginTop: 24 }}>Titel</h3>

@@ -62,7 +62,8 @@ export interface Game {
   seating?: import('./tourney').Seating;
   finalTable?: { at: number; dismissed?: boolean }; // Finaltisch-Pop-up am TV (bis die Uhr weiterläuft)
   moveNotice?: { at: number; title: string; moves: import('./tourney').Move[]; dismissed?: boolean }; // Umsetzen am TV
-  endCheck?: { bustId: string; resume: boolean }; // nur noch ein Spieler: Host prüft, ob das Turnier vorbei ist
+  endCheck?: { bustId: string; resume: boolean };
+  source?: 'stack-tracker'; // importiert: keine Uhrzeiten, bei Turnieren nur bezahlte Plätze bekannt // nur noch ein Spieler: Host prüft, ob das Turnier vorbei ist
 }
 
 export interface AppData {

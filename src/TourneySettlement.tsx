@@ -29,7 +29,7 @@ export default function TourneySettlement({ game, onBack, onReopen, onPodium }: 
     <div className="page">
       <header className="topbar">
         <button className="btn ghost" onClick={onBack}>{Icon.back} <span className="lbl">Homegames</span></button>
-        <div className="title"><b>{game.name} · Turnier-Abrechnung</b><span>{fmtDate(game.createdAt)} · {fmtTime(game.startedAt ?? game.createdAt)}–{fmtTime(game.endedAt!)}</span></div>
+        <div className="title"><b>{game.name} · Turnier-Abrechnung</b><span>{fmtDate(game.createdAt)} · {game.source ? 'importiert aus Stack-Tracker' : `${fmtTime(game.startedAt ?? game.createdAt)}–${fmtTime(game.endedAt!)}`}</span></div>
         <div className="spacer" />
         <div className="actions">
           {onPodium && <button className="btn" onClick={onPodium}>{Icon.tv} Treppchen</button>}
@@ -56,7 +56,7 @@ export default function TourneySettlement({ game, onBack, onReopen, onPodium }: 
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td><div className="row"><Avatar name={r.name} /><b>{r.name}</b>{r.place === 1 && <span className="badge cash">{Icon.trophy} Sieger</span>}</div></td>
-                  <td>{r.place ? `${r.place}.` : '–'}</td>
+                  <td>{r.place && !(game.source && !(r.prize > 0)) ? `${r.place}.` : '–'}</td>
                   <td>{fmt(r.totalIn)}</td>
                   <td className="paid">{fmt(r.paidCash)}</td>
                   <td><Money v={r.open} tone="open" /></td>
